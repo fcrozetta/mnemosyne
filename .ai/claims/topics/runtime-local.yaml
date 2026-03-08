@@ -1,0 +1,49 @@
+---
+schema_version: 1
+topic: runtime-local
+last_updated: 2026-02-27T19:33:42Z
+claims:
+  - id: mnemo-0009
+    title: Ingestion is synchronous; enrichment is asynchronous
+    status: active
+    statement: >-
+      Initial runtime accepts ingest writes synchronously and performs
+      enrichment/expansion asynchronously.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0009-sync-ingest-async-enrichment.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure ingest endpoint contract returns after durable acceptance.
+        - Ensure enrichment pipeline is decoupled from ingest response path.
+
+  - id: mnemo-0010
+    title: Manual notes are the first ingestion path
+    status: active
+    statement: >-
+      First connector path is manual notes ingestion. External integrations are
+      deferred until core data contracts are proven.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0010-manual-notes-first.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure v0 roadmap includes manual notes ingestion first.
+        - Ensure Slack/calendar connectors are explicitly deferred.
+
+  - id: mnemo-0016
+    title: Media storage backend choice is deferred with AI-processing intent
+    status: active
+    statement: >-
+      Media artifact storage backend (NAS path vs MinIO) is deferred. Design
+      must preserve future AI media analysis pipeline compatibility.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0016-media-storage-deferred-ai-pipeline.md
+    updated_at: 2026-02-27T19:33:42Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure current ingest contracts support future artifact pointers.
+        - Ensure roadmap includes backend decision and media processing phase.

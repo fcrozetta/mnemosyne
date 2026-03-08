@@ -1,0 +1,55 @@
+---
+schema_version: 1
+topic: agent-directives
+last_updated: 2026-03-08T00:00:00Z
+claims:
+  - id: mnemo-0001
+    title: Agent directives are the project execution baseline
+    status: active
+    statement: >-
+      Mnemosyne execution follows repository AGENTS.md directives, with
+      API-first safety boundaries and ownership constraints.
+    source: AGENTS.md
+    doc: .ai/claims/0001-agent-directives.md
+    updated_at: 2026-02-27T18:54:04Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Verify AGENTS.md exists and includes API boundary + ownership policy.
+        - >-
+          Verify implementation decisions do not bypass API for management
+          operations.
+
+  - id: mnemo-0023
+    title: Settled decisions must be persisted to claims
+    status: active
+    statement: >-
+      When the user says to remember something, or when a definition is clearly
+      settled, the decision must be persisted into repo claims without waiting
+      for a separate reminder.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0023-claims-persistence-discipline.md
+    updated_at: 2026-02-27T21:19:45Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure settled architectural decisions are added to topic claims.
+        - Ensure explicit "remember" requests result in claim updates.
+
+  - id: mnemo-0056
+    title: .ai excludes user-local agent state
+    status: active
+    statement: >-
+      The `.ai` directory stores public project memory only. User-local agent
+      state and workstation-specific metadata must not be stored under `.ai`.
+    source: Owner decision 2026-03-08
+    doc: >-
+      .ai/claims/0056-ai-directory-excludes-user-local-agent-state.md
+    updated_at: 2026-03-08T00:00:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure `.ai` contains no user-local agent-state files.
+        - Ensure `.ai` contains no workstation-specific references.
+        - Ensure AGENTS.md states that `.ai` is public project memory only.

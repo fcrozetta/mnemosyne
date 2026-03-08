@@ -1,0 +1,375 @@
+---
+schema_version: 1
+topic: api-and-mcp
+last_updated: 2026-02-28T02:40:00Z
+claims:
+  - id: mnemo-0004
+    title: API and MCP are the final phase in this sequence
+    status: active
+    statement: >-
+      API and MCP integration are implemented after directives, infrastructure,
+      and data substrate claims are documented and accepted.
+    source: Owner directive 2026-02-27
+    doc: .ai/claims/0004-api-and-mcp.md
+    updated_at: 2026-02-27T18:54:04Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Ensure API management endpoints enforce registry and access
+          invariants.
+        - Ensure MCP capabilities map to API-approved operations only.
+
+  - id: mnemo-0017
+    title: Admin and operational flows run through API, not direct DB
+    status: active
+    statement: >-
+      Operational actions use admin API endpoints. CLI, when introduced, is a
+      privileged API client and does not write directly to ArangoDB.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0017-admin-cli-via-api.md
+    updated_at: 2026-02-27T19:53:47Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure admin runbooks use API endpoints for operational actions.
+        - Ensure CLI design forbids direct database write paths.
+
+  - id: mnemo-0018
+    title: System collections are not writable by client-facing APIs
+    status: active
+    statement: >-
+      Client-facing APIs cannot write system collections (registry, audit,
+      migration, idempotency, queue, auth, policy). These are server-managed.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0018-system-collections-non-client-writable.md
+    updated_at: 2026-02-27T19:53:47Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure business endpoints do not expose raw system collection writes.
+        - Ensure system collection writes are server-side only.
+
+  - id: mnemo-0020
+    title: API sanitizes input and stamps protected provenance fields
+    status: active
+    statement: >-
+      API uses allowlist validation, drops unknown fields, and always overrides
+      protected provenance fields from token-derived principal context.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0020-api-sanitization-and-stamping.md
+    updated_at: 2026-02-27T19:57:28Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure write schemas allow only expected fields per endpoint.
+        - Ensure created_by and similar protected fields come from auth context.
+        - Ensure client-supplied protected fields are ignored or rejected.
+
+  - id: mnemo-0037
+    title: API stack and module layout are predefined
+    status: active
+    statement: >-
+      Future API work uses Python with uv, FastAPI for HTTP, fastapi-mcp for
+      MCP, app/main.py as entrypoint, and router/handler/service/repository
+      modules.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0037-api-stack-and-layout-directives.md
+    updated_at: 2026-02-27T22:21:50Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure API entrypoint is app/main.py.
+        - Ensure code layout follows router handler service repository modules.
+        - Ensure Python code stays typed and comments/docstrings stay lean.
+
+  - id: mnemo-0040
+    title: Public API surface is behavior-first
+    status: active
+    statement: >-
+      The public API is behavior-first rather than collection CRUD-first.
+      Endpoints are task-oriented and hide internal graph/revision mechanics.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0040-behavior-first-api-surface.md
+    updated_at: 2026-02-27T23:20:13Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure public endpoints are task-oriented.
+        - Ensure internal graph mechanics are not client-managed.
+
+  - id: mnemo-0041
+    title: Notes endpoint family is the reference v0 behavior contract
+    status: active
+    statement: >-
+      `POST /notes`, `GET /notes`, `PUT /notes/{note_id}`,
+      `PATCH /notes/{note_id}`, and `GET /notes/{note_id}` define the
+      reference v0 behavior-first contract. The API manages note revisions,
+      supersession, latest revision, and patch derivation server-side while
+      exposing integer `version` concurrency to clients.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0041-notes-endpoint-contract.md
+    updated_at: 2026-02-28T03:05:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure note writes do not expose revision wiring to clients.
+        - Ensure client-facing concurrency uses `version` instead of revision
+          internals.
+        - Ensure `GET /notes` returns ranked latest-note search results.
+        - Ensure `GET /notes/{note_id}` returns the latest note view only in v0.
+        - Ensure mentions are not required in initial note write payloads.
+
+  - id: mnemo-0042
+    title: API response contracts distinguish document and graph outputs
+    status: active
+    statement: >-
+      API responses use two shapes: raw document JSON for direct resource
+      responses and standardized node-link for graph/path visualization.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0042-api-return-shapes-and-nodelink.md
+    updated_at: 2026-02-27T23:20:13Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure graph-oriented responses standardize on node-link format.
+        - Ensure deploy/runtime planning includes MNEMOS::NODELINK support.
+
+  - id: mnemo-0043
+    title: Notes about input uses resolved and unresolved targets
+    status: active
+    statement: >-
+      Note write `about` input is split into resolved entity references and
+      unresolved labeled targets. Resolved targets become graph edges;
+      unresolved targets remain inline on `note_revision` as pending context in
+      v0.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0043-note-about-input-and-inline-pending-context.md
+    updated_at: 2026-02-28T00:45:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure write schemas distinguish resolved and unresolved about
+          targets.
+        - Ensure unresolved targets can be persisted inline on note revisions.
+        - Ensure unresolved dedupe uses deterministic normalized labels.
+
+  - id: mnemo-0044
+    title: Initial API schema layout is flat by domain
+    status: active
+    statement: >-
+      Initial API schema modules live directly under `app/schemas/`, starting
+      with `common.py` and `notes.py`. Per-domain schema subpackages are
+      deferred until there is clear structural pressure.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0044-initial-schema-layout-is-flat-by-domain.md
+    updated_at: 2026-02-28T00:45:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure initial note API schemas can live in `app/schemas/notes.py`.
+        - Ensure shared helpers can live in `app/schemas/common.py`.
+        - Ensure domain subpackages are not introduced prematurely.
+
+  - id: mnemo-0045
+    title: API error responses use a shared typed shape
+    status: active
+    statement: >-
+      Mnemosyne API endpoints use a shared typed error payload with top-level
+      `error`, structured `details`, and optional `request_id` instead of
+      endpoint-specific ad hoc error bodies.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0045-api-error-responses-use-a-shared-shape.md
+    updated_at: 2026-02-28T01:15:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure shared error schemas exist in `app/schemas/errors.py`.
+        - Ensure notes endpoints document `400`, `404`, and `409` with the
+          shared error model.
+        - Ensure service failures can be mapped into the shared error payload.
+
+  - id: mnemo-0046
+    title: Notes runtime starts with router handler service boundaries
+    status: active
+    statement: >-
+      The initial notes runtime is scaffolded with router, handler, service, and
+      repository boundaries before Arango persistence models are introduced.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0046-notes-runtime-starts-with-router-handler-service-boundaries.md
+    updated_at: 2026-02-28T01:15:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure notes runtime files exist for router, handler, service, and
+          repository.
+        - Ensure `app/main.py` wires the notes router.
+        - Ensure repository remains an explicit dependency boundary.
+
+  - id: mnemo-0047
+    title: Note persistence models are separate from API schemas
+    status: active
+    statement: >-
+      Internal note persistence models live under `app/models/` and remain
+      separate from public note API schemas under `app/schemas/`, so Arango
+      document and edge fields do not leak into the public contract.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0047-note-persistence-models-are-separate-from-api-schemas.md
+    updated_at: 2026-02-28T01:40:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure internal note models exist outside `app/schemas/`.
+        - Ensure public note schemas do not expose Arango `_key`, `_from`, or
+          `_to` fields.
+        - Ensure repository code can persist note state without reusing public
+          API schema classes as storage records.
+
+  - id: mnemo-0048
+    title: Notes default to an in-memory Arango-shaped repository
+    status: active
+    statement: >-
+      Until the real Arango repository is implemented, notes use an in-memory
+      repository that stores Arango-shaped note documents, revisions, events,
+      and edges behind the repository boundary.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0048-notes-default-to-an-in-memory-arango-shaped-repository.md
+    updated_at: 2026-02-28T01:40:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure a concrete in-memory notes repository exists behind the
+          protocol.
+        - Ensure service code no longer uses `NoteView` as its persistence
+          layer.
+        - Ensure replacing the repository does not require changing the public
+          notes API contract.
+
+  - id: mnemo-0049
+    title: Python runtime is packaged with uv
+    status: active
+    statement: >-
+      Mnemosyne's Python runtime is packaged with `uv` using a repo-level
+      `pyproject.toml`, checked-in `uv.lock`, and `[tool.uv] package = true`
+      so the local project is installed as a package during `uv sync`. Local
+      development uses `fastapi dev` as the primary entrypoint.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0049-python-runtime-is-packaged-with-uv.md
+    updated_at: 2026-02-28T02:00:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure `pyproject.toml` exists at repo root.
+        - Ensure `uv.lock` exists at repo root.
+        - Ensure `uv sync --dev` can create a working local API environment.
+        - Ensure README explains the `uv` workflow and `package = true`.
+        - Ensure README documents `fastapi dev` as the primary local dev
+          command.
+
+  - id: mnemo-0050
+    title: Notes runtime uses an Arango-backed repository by default
+    status: active
+    statement: >-
+      The default notes runtime path uses env-driven settings and an
+      `ArangoNotesRepository`, while the in-memory repository remains only as a
+      temporary testing aid.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0050-notes-runtime-uses-an-arango-backed-repository-by-default.md
+    updated_at: 2026-02-28T01:50:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure runtime settings can build the Arango database handle.
+        - Ensure the notes router resolves to the Arango-backed repository path.
+        - Ensure real note create patch put flows work against local Arango.
+
+  - id: mnemo-0051
+    title: Notes have a service-level pytest baseline
+    status: active
+    statement: >-
+      The notes runtime has a service-level pytest baseline that exercises note
+      behavior against the in-memory repository for fast feedback, including
+      create get patch put conflict and unresolved-context dedupe flows.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0051-notes-have-a-service-level-pytest-baseline.md
+    updated_at: 2026-02-28T02:10:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure `tests/` contains service-level note tests.
+        - Ensure `uv run pytest -q` passes locally.
+        - Ensure `uv run ruff check app tests` passes locally.
+
+  - id: mnemo-0052
+    title: Notes have an API-level test baseline
+    status: active
+    statement: >-
+      The notes runtime has an API-level test baseline using FastAPI TestClient
+      and dependency overrides, covering create responses plus shared `404` and
+      `409` error payload shapes.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0052-notes-have-an-api-level-test-baseline.md
+    updated_at: 2026-02-28T02:25:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure `tests/test_notes_api.py` exists.
+        - Ensure API tests run through the real FastAPI app.
+        - Ensure error responses use the shared top-level error shape.
+
+  - id: mnemo-0053
+    title: Note version conflicts are enforced in the repository layer
+    status: active
+    statement: >-
+      Note version conflicts are enforced in the repository layer using
+      `expected_version`, and the Arango repository performs the conflict check
+      inside the persistence boundary rather than relying only on service-level
+      prechecks.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0053-note-version-conflicts-are-enforced-in-the-repository-layer.md
+    updated_at: 2026-02-28T02:25:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure repository protocol supports `expected_version`.
+        - Ensure repository implementations raise a typed version conflict.
+        - Ensure direct repository smoke testing rejects stale writes.
+
+  - id: mnemo-0054
+    title: Notes search is a stateless GET /notes endpoint backed by ArangoSearch
+    status: active
+    statement: >-
+      The API remains stateless for chat session context. Notes discovery
+      happens via `GET /notes`, which performs ArangoSearch-backed retrieval
+      over current searchable fields stored on the `note` anchor without
+      interpreting conversational context.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0054-note-resolution-uses-chat-context-first-and-arangosearch-fallback.md
+    updated_at: 2026-02-28T03:05:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure conversational note state is kept outside the API runtime.
+        - Ensure `GET /notes` exists as the note search endpoint.
+        - Ensure search planning uses ArangoSearch primitives instead of
+          deprecated fulltext indexes.
+        - Ensure search targets current note state on `note` rather than all
+          historical revisions or a duplicate search collection.
+
+  - id: mnemo-0055
+    title: Notes have Arango-backed integration tests
+    status: active
+    statement: >-
+      The notes runtime has Arango-backed integration tests that validate
+      current-note search behavior and repository-level version enforcement
+      against a real local database.
+    source: Owner decision 2026-02-28
+    doc: .ai/claims/0055-notes-have-arango-backed-integration-tests.md
+    updated_at: 2026-02-28T13:35:00Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure `tests/test_notes_repository_arango.py` exists.
+        - Ensure integration tests pass against a seeded local ArangoDB.
+        - Ensure search integration validates current state on `note`, not a
+          duplicate search collection.

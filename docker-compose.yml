@@ -1,0 +1,49 @@
+services:
+  arangodb:
+    image: ${ARANGO_IMAGE:-arangodb/enterprise:latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-mnemosyne}-arangodb
+    ports:
+      - "${ARANGO_PORT:-8529}:8529"
+    environment:
+      ARANGO_ROOT_PASSWORD: ${ARANGO_ROOT_PASSWORD:-root}
+      ARANGO_LICENSE_KEY: ${ARANGO_LICENSE_KEY:-}
+    volumes:
+      - arangodb-data:/var/lib/arangodb3
+      - arangodb-apps:/var/lib/arangodb3-apps
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "arangosh",
+          "--server.endpoint",
+          "tcp://127.0.0.1:8529",
+          "--server.username",
+          "root",
+          "--server.password",
+          "${ARANGO_ROOT_PASSWORD:-root}",
+          "--javascript.execute-string",
+          "db._version()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  arango-init:
+    image: ${ARANGO_IMAGE:-arangodb/enterprise:latest}
+    depends_on:
+      arangodb:
+        condition: service_healthy
+    environment:
+      ARANGO_HOST: arangodb
+      ARANGO_PORT: "8529"
+      ARANGO_DB: ${ARANGO_DB:-mnemosyne}
+      ARANGO_ROOT_PASSWORD: ${ARANGO_ROOT_PASSWORD:-root}
+    volumes:
+      - ./docker/arango:/docker/arango:ro
+    entrypoint: ["/bin/sh", "/docker/arango/init/seed.sh"]
+    restart: "no"
+
+volumes:
+  arangodb-data:
+  arangodb-apps:

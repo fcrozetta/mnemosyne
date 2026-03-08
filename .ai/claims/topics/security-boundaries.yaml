@@ -1,0 +1,19 @@
+---
+schema_version: 1
+topic: security-boundaries
+last_updated: 2026-02-27T19:23:34Z
+claims:
+  - id: mnemo-0012
+    title: Medical data is in scope without compliance-first requirements
+    status: active
+    statement: >-
+      Medical data may be stored for personal use. HIPAA/ISO alignment is not a
+      v0 requirement, but provenance and redaction boundaries remain mandatory.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0012-medical-in-scope-personal.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure docs state personal-use scope for medical data handling.
+        - Ensure provenance and visibility constraints are still enforced.

@@ -1,0 +1,305 @@
+---
+schema_version: 1
+topic: build-on-top
+last_updated: 2026-02-27T22:55:59Z
+claims:
+  - id: mnemo-0003
+    title: Data substrate is built before API and MCP
+    status: active
+    statement: >-
+      Core data contracts (collection registry, append-only versioning, access
+      policy) are finalized before API and MCP endpoints are implemented.
+    source: Owner directive + AGENTS.md
+    doc: .ai/claims/0003-build-on-top.md
+    updated_at: 2026-02-27T18:54:04Z
+    validation:
+      type: doc-check
+      steps:
+        - Document collection ownership registry requirements and invariants.
+        - >-
+          Document append-only artifact versioning and optimistic concurrency
+          behavior.
+
+  - id: mnemo-0006
+    title: Global person entity is the core identity model
+    status: active
+    statement: >-
+      Use one global person entity. Domain labels such as patient are modeled
+      as roles/attributes/relationships, not separate primary entities.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0006-global-person-identity.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure schema centers identity around a global person node.
+        - Ensure patient context is modeled via role or linked context.
+
+  - id: mnemo-0007
+    title: Relation verification is verified-only in v0
+    status: active
+    statement: >-
+      v0 stores relations as verified only. Provisional and rejected states are
+      deferred to a later phase.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0007-provisional-relations.md
+    updated_at: 2026-02-27T19:26:10Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure relation schema for v0 uses verified as the only state.
+        - Ensure provisional or rejected states are not required in v0 APIs.
+
+  - id: mnemo-0008
+    title: Meetings are anchored by generated meeting_id
+    status: active
+    statement: >-
+      Meeting entities use generated meeting_id as canonical anchor instead of
+      external provider IDs.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0008-generated-meeting-id.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure meeting schema includes generated canonical identifier.
+        - Ensure external IDs are stored as source identities, not anchors.
+
+  - id: mnemo-0013
+    title: Multi-state relation verification is deferred
+    status: planned
+    statement: >-
+      Relation states unverified and rejected are required in a later phase and
+      are intentionally deferred from v0 implementation.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0013-relation-states-deferred.md
+    updated_at: 2026-02-27T19:26:10Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure roadmap includes future support for unverified and rejected.
+        - Ensure migration path from verified-only state is documented.
+
+  - id: mnemo-0015
+    title: Ingest into Arango before media storage integration
+    status: active
+    statement: >-
+      v0 data path prioritizes ingestion of notes/events into ArangoDB with
+      basic collections. Media storage integration is deferred.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0015-arango-first-media-later.md
+    updated_at: 2026-02-27T19:33:42Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure schema includes basic collections for v0 ingest use cases.
+        - Ensure media artifact collections/pointers are marked future work.
+
+  - id: mnemo-0019
+    title: v0 basic collections are predefined and minimal
+    status: active
+    statement: >-
+      v0 uses a fixed minimal collection set for people, identities, meetings,
+      notes, ingest events, and explicit graph edges before adding integrations.
+    source: Architecture decision 2026-02-27
+    doc: .ai/claims/0019-v0-basic-collections.md
+    updated_at: 2026-02-27T22:24:57Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure collection list distinguishes document and edge kinds.
+        - Ensure each collection has purpose, ownership, and index intent.
+
+  - id: mnemo-0021
+    title: Graph edge names follow verb-phrase convention
+    status: active
+    statement: >-
+      Edge relation names use verb phrases in snake_case so each edge reads as
+      a sentence from source to target.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0021-edge-verb-naming-standard.md
+    updated_at: 2026-02-27T22:24:57Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure edge relation names are verbs, not nouns.
+        - Ensure edge direction is documented and used consistently.
+
+  - id: mnemo-0022
+    title: Notes support separate about and mentions semantics
+    status: active
+    statement: >-
+      Note revisions can link to entities via about and mentions. These edges
+      have different meaning and later AI enrichment may add mentions edges.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0022-note-about-vs-mentions.md
+    updated_at: 2026-02-27T21:03:27Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure note relation docs distinguish about from mentions.
+        - Ensure AI enrichment path adds mention-like edges with provenance.
+
+  - id: mnemo-0024
+    title: Notes may target follow-ups and related entities simultaneously
+    status: active
+    statement: >-
+      A note revision may be about a follow_up and also about the underlying
+      state, person, meeting, or other related entities at the same time.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0024-notes-can-target-follow-ups-and-entities.md
+    updated_at: 2026-02-27T21:19:45Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure note relation docs allow about edges to follow_up nodes.
+        - Ensure notes may also keep about links to related domain entities.
+
+  - id: mnemo-0025
+    title: Purchase and inventory model separates transaction from ownership
+    status: active
+    statement: >-
+      Purchases are modeled separately from item identity and ownership state.
+      The graph distinguishes purchase, purchase_item, item, payment
+      obligation, payment method, seller, and product detail snapshots.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0025-purchase-inventory-separation.md
+    updated_at: 2026-02-27T22:00:57Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure purchase, item, and payment concepts are separate.
+        - Ensure product details are preserved independently from payments.
+
+  - id: mnemo-0026
+    title: Item inventory is tracked per physical item
+    status: active
+    statement: >-
+      Inventory tracks one item per physical item, even when a purchase
+      contains quantity greater than one.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0026-owned-item-per-physical-item.md
+    updated_at: 2026-02-27T22:00:57Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Ensure ownership model does not collapse multiple physical items into
+          one node.
+        - >-
+          Ensure quantity can fan out from purchase_item to multiple item
+          nodes.
+
+  - id: mnemo-0027
+    title: Disposal lifecycle and fit reasons are part of inventory history
+    status: active
+    statement: >-
+      Items support disposition lifecycle, including reasons
+      such as sold, donated, lost, broken, too_small, and too_big.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0027-owned-item-disposal-lifecycle.md
+    updated_at: 2026-02-27T22:00:57Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure items can leave active ownership without deletion.
+        - Ensure disposition reason is retained as historical metadata.
+
+  - id: mnemo-0028
+    title: >-
+      Installment obligations belong to purchase and product details stay raw
+      first
+    status: active
+    statement: >-
+      Installment plans attach to purchase, not purchase_item. Product details
+      use raw fields first and taxonomy normalization is deferred.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0028-purchase-installments-and-raw-product-fields.md
+    updated_at: 2026-02-27T21:37:14Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure purchase-level payment obligation supports installments.
+        - Ensure v0 product attributes use raw fields before normalization.
+
+  - id: mnemo-0029
+    title: Inventory model is category-agnostic with raw product attributes
+    status: active
+    statement: >-
+      Inventory and purchase modeling must work across categories such as
+      clothes, fountain pens, inks, and others. Category-specific details live
+      as raw structured attributes on product_snapshot in v0.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0029-category-agnostic-inventory.md
+    updated_at: 2026-02-27T21:47:32Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure product_snapshot includes category and raw attribute support.
+        - Ensure core purchase/ownership model is not specialized per category.
+
+  - id: mnemo-0030
+    title: Item is the anchor; ownership and desire are graph relations
+    status: active
+    statement: >-
+      The stable node is item. Ownership, desire, custody, lending, and
+      disposal are modeled through relations and states around the item.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0030-item-anchor-relational-ownership.md
+    updated_at: 2026-02-27T22:55:59Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Ensure collection naming does not bake ownership status into item
+          identity.
+        - Ensure ownership-like lifecycle concerns are modeled relationally.
+
+  - id: mnemo-0031
+    title: Product snapshots describe items
+    status: active
+    statement: >-
+      Product detail snapshots point to items via describes. This direction
+      reads naturally and keeps snapshot semantics explicit.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0031-product-snapshot-describes-item.md
+    updated_at: 2026-02-27T22:00:57Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure graph examples use product_snapshot --describes--> item.
+        - Ensure item detail modeling keeps snapshot and item distinct.
+
+  - id: mnemo-0032
+    title: Temporal verbs owns located_at applies_to and targets are accepted
+    status: active
+    statement: >-
+      The graph vocabulary accepts owns, located_at, applies_to, and targets as
+      valid verb-style edge names.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0032-approved-edge-verbs.md
+    updated_at: 2026-02-27T22:00:57Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure these verbs can be used consistently in schema diagrams/docs.
+        - Ensure future naming stays concise and verb-oriented.
+
+  - id: mnemo-0033
+    title: Item nodes are unitary physical units
+    status: active
+    statement: >-
+      Each item node represents one concrete physical unit. If an item is lost
+      and replaced by the same model, the replacement is a new item node even
+      when description data is identical.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0033-item-nodes-are-unitary.md
+    updated_at: 2026-02-27T22:03:44Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Ensure identical products can still produce distinct item nodes.
+        - >-
+          Ensure lifecycle state changes do not reuse item identity for
+          replacements.

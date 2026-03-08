@@ -1,0 +1,30 @@
+---
+schema_version: 2
+last_updated: 2026-02-27T23:20:13Z
+mode: topic-index
+
+topics:
+  - key: agent-directives
+    title: Agent Directives
+    index: .ai/claims/topics/agent-directives.yaml
+  - key: local-deploy-infra
+    title: Local and Deploy Infra
+    index: .ai/claims/topics/local-deploy-infra.yaml
+  - key: build-on-top
+    title: Data Substrate
+    index: .ai/claims/topics/build-on-top.yaml
+  - key: api-and-mcp
+    title: API and MCP
+    index: .ai/claims/topics/api-and-mcp.yaml
+  - key: runtime-local
+    title: Runtime Local
+    index: .ai/claims/topics/runtime-local.yaml
+  - key: deploy-target
+    title: Deploy Target
+    index: .ai/claims/topics/deploy-target.yaml
+  - key: observability
+    title: Observability
+    index: .ai/claims/topics/observability.yaml
+  - key: security-boundaries
+    title: Security Boundaries
+    index: .ai/claims/topics/security-boundaries.yaml

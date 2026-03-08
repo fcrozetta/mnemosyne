@@ -1,0 +1,135 @@
+---
+schema_version: 1
+topic: local-deploy-infra
+last_updated: 2026-02-27T22:48:29Z
+claims:
+  - id: mnemo-0002
+    title: Build order starts with local and deploy infra contracts
+    status: active
+    statement: >-
+      After directives, we establish local/deploy infrastructure contracts
+      before expanding data/API surface.
+    source: Owner directive 2026-02-27
+    doc: .ai/claims/0002-local-deploy-infra.md
+    updated_at: 2026-02-27T18:54:04Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Define local runtime and deployment assumptions in infrastructure
+          docs.
+        - >-
+          Capture non-goals and phase gates before API and MCP implementation.
+
+  - id: mnemo-0005
+    title: API-first core; CLI is skipped for initial phases
+    status: active
+    statement: >-
+      Mnemosyne starts API-first. A CLI is not required in v0 and may be added
+      later as a thin client over API contracts.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0005-api-first-no-cli-v0.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure architecture docs define API as primary write boundary.
+        - Ensure no CLI milestone is required before API contracts exist.
+
+  - id: mnemo-0014
+    title: v0 runtime skeleton is API and ArangoDB only
+    status: active
+    statement: >-
+      Initial infrastructure implementation includes only API and ArangoDB.
+      Worker runtime is deferred until after skeleton validation.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0014-v0-runtime-api-arango-only.md
+    updated_at: 2026-02-27T19:33:42Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Ensure v0 compose/runtime docs list api and arangodb services only.
+        - >-
+          Ensure worker process is marked deferred and not required for
+          bring-up.
+
+  - id: mnemo-0034
+    title: Root compose and make bootstrap are the infra entrypoint
+    status: active
+    statement: >-
+      Infrastructure bootstrap starts from a root docker-compose file, docker
+      bootstrap scripts, and a root Makefile with db and clean targets.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0034-root-compose-and-make-bootstrap.md
+    updated_at: 2026-02-27T22:21:50Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure root docker-compose and Makefile exist.
+        - Ensure docker bootstrap scripts live under docker/.
+
+  - id: mnemo-0035
+    title: Local Arango uses root password with env-driven config
+    status: active
+    statement: >-
+      Local infrastructure uses latest stable ArangoDB Enterprise with root
+      password authentication and configuration sourced from .env.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0035-local-arango-open-dev.md
+    updated_at: 2026-02-27T22:40:03Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure compose config is env-driven.
+        - Ensure local bootstrap authenticates to Arango with root password.
+
+  - id: mnemo-0036
+    title: Explicit init service is used and migrations are deferred
+    status: active
+    statement: >-
+      Bootstrap uses an explicit init service to create and seed ArangoDB.
+      There is no migration framework yet, and API startup must not mutate the
+      database implicitly.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0036-init-service-no-migrations-yet.md
+    updated_at: 2026-02-27T22:21:50Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure bootstrap uses a dedicated init path or service.
+        - Ensure API startup is free of hidden schema mutation.
+
+  - id: mnemo-0038
+    title: Seeded graph query scripts exist for inspection
+    status: active
+    statement: >-
+      Local bootstrap includes non-mutating graph query scripts and make targets
+      to inspect seeded graph slices directly from ArangoDB.
+    source: Architecture decision 2026-02-27
+    doc: .ai/claims/0038-seeded-graph-query-scripts.md
+    updated_at: 2026-02-27T22:42:42Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure query scripts live under docker/arango/query/.
+        - Ensure make targets invoke read-only graph inspection views.
+
+  - id: mnemo-0039
+    title: Arango bootstrap creates domain graphs plus umbrella graph
+    status: active
+    statement: >-
+      Arango bootstrap creates multiple named domain graphs and one umbrella
+      graph over the shared collections and edge collections.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0039-arango-domain-graphs-plus-umbrella.md
+    updated_at: 2026-02-27T22:48:29Z
+    validation:
+      type: doc-check
+      steps:
+        - >-
+          Ensure bootstrap creates identity notes temporal inventory and
+          umbrella graphs.
+        - >-
+          Ensure named graphs are layered on shared collections without
+          duplication.

@@ -1,0 +1,19 @@
+---
+schema_version: 1
+topic: deploy-target
+last_updated: 2026-02-27T19:23:34Z
+claims:
+  - id: mnemo-0011
+    title: Initial deployment is single-user
+    status: active
+    statement: >-
+      Mnemosyne v0 is designed for single-user operation and does not require
+      multi-tenant isolation.
+    source: Owner decision 2026-02-27
+    doc: .ai/claims/0011-single-user-v0.md
+    updated_at: 2026-02-27T19:23:34Z
+    validation:
+      type: doc-check
+      steps:
+        - Ensure architecture docs scope auth/tenancy to single-user baseline.
+        - Ensure multi-tenant support is marked as future work only.
