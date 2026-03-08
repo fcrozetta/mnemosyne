@@ -1,7 +1,7 @@
 ---
 schema_version: 1
 topic: build-on-top
-last_updated: 2026-02-27T22:55:59Z
+last_updated: 2026-03-08T15:20:00Z
 claims:
   - id: mnemo-0003
     title: Data substrate is built before API and MCP
@@ -99,16 +99,18 @@ claims:
     title: v0 basic collections are predefined and minimal
     status: active
     statement: >-
-      v0 uses a fixed minimal collection set for people, identities, meetings,
-      notes, ingest events, and explicit graph edges before adding integrations.
+      v0 uses a fixed minimal collection set for people, meetings, notes,
+      events, temporal state, follow-ups, items, locations, and explicit graph
+      edges before adding broader subsystems.
     source: Architecture decision 2026-02-27
     doc: .ai/claims/0019-v0-basic-collections.md
-    updated_at: 2026-02-27T22:24:57Z
+    updated_at: 2026-03-08T15:20:00Z
     validation:
       type: doc-check
       steps:
         - Ensure collection list distinguishes document and edge kinds.
-        - Ensure each collection has purpose, ownership, and index intent.
+        - Ensure deferred subsystems are called out explicitly instead of mixed
+          into current v0 scope.
 
   - id: mnemo-0021
     title: Graph edge names follow verb-phrase convention
@@ -126,19 +128,19 @@ claims:
         - Ensure edge direction is documented and used consistently.
 
   - id: mnemo-0022
-    title: Notes support separate about and mentions semantics
+    title: Notes use about in v0 and defer mentions
     status: active
     statement: >-
-      Note revisions can link to entities via about and mentions. These edges
-      have different meaning and later AI enrichment may add mentions edges.
+      v0 note revisions use about for asserted context. Separate mentions edges
+      are deferred until a concrete enrichment workflow exists.
     source: Owner decision 2026-02-27
     doc: .ai/claims/0022-note-about-vs-mentions.md
-    updated_at: 2026-02-27T21:03:27Z
+    updated_at: 2026-03-08T15:20:00Z
     validation:
       type: doc-check
       steps:
-        - Ensure note relation docs distinguish about from mentions.
-        - Ensure AI enrichment path adds mention-like edges with provenance.
+        - Ensure current v0 note relation docs center about semantics.
+        - Ensure mentions remain explicitly deferred rather than implied.
 
   - id: mnemo-0024
     title: Notes may target follow-ups and related entities simultaneously
@@ -157,7 +159,7 @@ claims:
 
   - id: mnemo-0025
     title: Purchase and inventory model separates transaction from ownership
-    status: active
+    status: planned
     statement: >-
       Purchases are modeled separately from item identity and ownership state.
       The graph distinguishes purchase, purchase_item, item, payment
@@ -173,7 +175,7 @@ claims:
 
   - id: mnemo-0026
     title: Item inventory is tracked per physical item
-    status: active
+    status: planned
     statement: >-
       Inventory tracks one item per physical item, even when a purchase
       contains quantity greater than one.
@@ -192,7 +194,7 @@ claims:
 
   - id: mnemo-0027
     title: Disposal lifecycle and fit reasons are part of inventory history
-    status: active
+    status: planned
     statement: >-
       Items support disposition lifecycle, including reasons
       such as sold, donated, lost, broken, too_small, and too_big.
@@ -209,7 +211,7 @@ claims:
     title: >-
       Installment obligations belong to purchase and product details stay raw
       first
-    status: active
+    status: planned
     statement: >-
       Installment plans attach to purchase, not purchase_item. Product details
       use raw fields first and taxonomy normalization is deferred.
@@ -224,7 +226,7 @@ claims:
 
   - id: mnemo-0029
     title: Inventory model is category-agnostic with raw product attributes
-    status: active
+    status: planned
     statement: >-
       Inventory and purchase modeling must work across categories such as
       clothes, fountain pens, inks, and others. Category-specific details live
@@ -257,7 +259,7 @@ claims:
 
   - id: mnemo-0031
     title: Product snapshots describe items
-    status: active
+    status: planned
     statement: >-
       Product detail snapshots point to items via describes. This direction
       reads naturally and keeps snapshot semantics explicit.

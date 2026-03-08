@@ -1,7 +1,7 @@
 ---
 schema_version: 1
 topic: local-deploy-infra
-last_updated: 2026-02-27T22:48:29Z
+last_updated: 2026-03-08T15:20:00Z
 claims:
   - id: mnemo-0002
     title: Build order starts with local and deploy infra contracts
@@ -123,12 +123,12 @@ claims:
       graph over the shared collections and edge collections.
     source: Owner decision 2026-02-27
     doc: .ai/claims/0039-arango-domain-graphs-plus-umbrella.md
-    updated_at: 2026-02-27T22:48:29Z
+    updated_at: 2026-03-08T15:20:00Z
     validation:
       type: doc-check
       steps:
         - >-
-          Ensure bootstrap creates identity notes temporal inventory and
+          Ensure bootstrap creates people notes temporal inventory and
           umbrella graphs.
         - >-
           Ensure named graphs are layered on shared collections without

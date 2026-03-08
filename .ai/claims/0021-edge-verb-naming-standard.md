@@ -12,16 +12,16 @@ Graph edge relation names must be verb phrases in `snake_case`.
 
 ## v0 Examples
 
-- `person --has_identity--> identity`
 - `person --participates_in--> meeting`
 - `note_revision --belongs_to--> note`
 - `note --latest_revision--> note_revision`
 - `note_revision --supersedes--> note_revision`
 - `note_revision --about--> meeting`
-- `note_revision --mentions--> person`
 - `note_revision --originates_from--> event`
-- `product_snapshot --describes--> item`
 - `person --owns--> item`
+- `item --located_at--> location`
+- `state --applies_to--> item`
+- `follow_up --targets--> state`
 
 ## Acceptance Checks
 

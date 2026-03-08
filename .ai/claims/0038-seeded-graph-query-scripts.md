@@ -15,7 +15,7 @@ slices directly from ArangoDB.
 
 - `graph-note`
 - `graph-followup`
-- `graph-purchase`
+- `graph-catalog`
 
 ## Acceptance Checks
 

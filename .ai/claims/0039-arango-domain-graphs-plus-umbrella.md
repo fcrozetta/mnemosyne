@@ -8,7 +8,7 @@ for traversal, inspection, and UI clarity.
 
 ## Required Named Graphs
 
-- `identity_graph`
+- `people_graph`
 - `notes_graph`
 - `temporal_graph`
 - `inventory_graph`
