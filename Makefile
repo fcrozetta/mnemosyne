@@ -3,7 +3,7 @@ PROJECT_NAME ?= mnemosyne
 ARANGO_CONTAINER := $(PROJECT_NAME)-arangodb
 ARANGO_QUERY_RUN = $(DOCKER_COMPOSE) run --rm --entrypoint /bin/sh arango-init /docker/arango/query/run-query.sh
 
-.PHONY: db seed clean ps logs graph graph-note graph-followup graph-purchase graph-catalog
+.PHONY: db seed clean ps logs graph graph-note graph-followup graph-catalog
 
 db:
 	$(DOCKER_COMPOSE) up -d arangodb
@@ -30,9 +30,6 @@ graph-note:
 
 graph-followup:
 	$(ARANGO_QUERY_RUN) follow_up_view
-
-graph-purchase:
-	$(ARANGO_QUERY_RUN) purchase_inventory
 
 graph-catalog:
 	$(ARANGO_QUERY_RUN) graph_catalog

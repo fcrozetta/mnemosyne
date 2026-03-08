@@ -13,16 +13,7 @@ FOR note IN note
       RETURN {
         edge: 'about',
         entity_id: entity._id,
-        collection: PARSE_IDENTIFIER(entity)._collection,
-        key: entity._key,
-      }
-  )
-  LET mentions = (
-    FOR entity IN OUTBOUND latest mentions
-      RETURN {
-        edge: 'mentions',
-        entity_id: entity._id,
-        collection: PARSE_IDENTIFIER(entity)._collection,
+        collection: PARSE_IDENTIFIER(entity._id).collection,
         key: entity._key,
       }
   )
@@ -34,7 +25,6 @@ FOR note IN note
     note: KEEP(note, '_id', '_key', 'note_id'),
     latest_revision: latest,
     contexts,
-    mentions,
     origin,
   }
 `);

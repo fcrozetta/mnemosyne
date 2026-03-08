@@ -1,11 +1,15 @@
 'use strict';
 
-const graphModule = require('@arangodb/general-graph');
+const db = require('@arangodb').db;
 
-const graphs = graphModule._list().map((graph) => ({
-  name: graph._key,
-  edge_definitions: graph.edgeDefinitions,
-  orphan_collections: graph.orphanCollections,
-}));
+const graphs = db._query(`
+FOR g IN _graphs
+  SORT g._key ASC
+  RETURN {
+    name: g._key,
+    edge_definitions: g.edgeDefinitions ? g.edgeDefinitions : [],
+    orphan_collections: g.orphanCollections ? g.orphanCollections : []
+  }
+`).toArray();
 
 print(JSON.stringify(graphs, null, 2));

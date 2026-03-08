@@ -8,105 +8,64 @@ const targetDb = internal.env.ARANGO_DB || 'mnemosyne';
 
 const documentCollections = [
   'person',
-  'identity',
   'meeting',
   'note',
   'note_revision',
   'event',
   'state',
   'follow_up',
-  'follow_up_event',
-  'purchase',
-  'purchase_item',
   'item',
-  'product_snapshot',
-  'seller',
-  'payment_method',
-  'payment_obligation',
-  'payment',
-  'place',
+  'location',
   'collection_registry',
   'audit_log',
-  'idempotency_ledger',
-  'job_queue',
-  'job_dead_letter',
 ];
 
 const edgeCollections = [
-  'has_identity',
   'participates_in',
   'belongs_to',
   'latest_revision',
   'supersedes',
   'originates_from',
   'about',
-  'mentions',
   'owns',
   'located_at',
   'applies_to',
   'targets',
-  'bought_from',
-  'paid_via',
-  'includes',
-  'results_in',
-  'creates',
-  'settles',
-  'describes',
 ];
 
 const noteContextTargets = [
   'person',
-  'identity',
   'meeting',
   'state',
   'follow_up',
   'item',
-  'purchase',
-  'purchase_item',
-  'seller',
-  'payment_method',
-  'payment_obligation',
-  'payment',
-  'place',
+  'location',
   'note',
 ];
 
-const temporalTargets = ['state', 'person', 'meeting', 'item', 'note', 'purchase'];
+const temporalTargets = ['state', 'person', 'meeting', 'item', 'note'];
 
 const relations = {
-  has_identity: graphModule._relation('has_identity', ['person'], ['identity']),
   participates_in: graphModule._relation('participates_in', ['person'], ['meeting']),
-  belongs_to: graphModule._relation(
-    'belongs_to',
-    ['note_revision', 'follow_up_event'],
-    ['note', 'follow_up']
-  ),
+  belongs_to: graphModule._relation('belongs_to', ['note_revision'], ['note']),
   latest_revision: graphModule._relation('latest_revision', ['note'], ['note_revision']),
   supersedes: graphModule._relation('supersedes', ['note_revision'], ['note_revision']),
   originates_from: graphModule._relation(
     'originates_from',
-    ['note_revision', 'follow_up_event', 'follow_up', 'state'],
+    ['note_revision', 'follow_up', 'state'],
     ['event']
   ),
   about: graphModule._relation('about', ['note_revision'], noteContextTargets),
-  mentions: graphModule._relation('mentions', ['note_revision'], noteContextTargets),
   owns: graphModule._relation('owns', ['person'], ['item']),
-  located_at: graphModule._relation('located_at', ['item', 'state'], ['place']),
+  located_at: graphModule._relation('located_at', ['item', 'state'], ['location']),
   applies_to: graphModule._relation('applies_to', ['state'], temporalTargets),
   targets: graphModule._relation('targets', ['follow_up'], temporalTargets),
-  bought_from: graphModule._relation('bought_from', ['purchase'], ['seller']),
-  paid_via: graphModule._relation('paid_via', ['purchase'], ['payment_method']),
-  includes: graphModule._relation('includes', ['purchase'], ['purchase_item']),
-  results_in: graphModule._relation('results_in', ['purchase_item'], ['item']),
-  creates: graphModule._relation('creates', ['purchase'], ['payment_obligation']),
-  settles: graphModule._relation('settles', ['payment'], ['payment_obligation']),
-  describes: graphModule._relation('describes', ['product_snapshot'], ['item']),
 };
 
 const graphDefinitions = [
   {
-    name: 'identity_graph',
-    edges: [relations.has_identity, relations.participates_in],
+    name: 'people_graph',
+    edges: [relations.participates_in],
   },
   {
     name: 'notes_graph',
@@ -116,7 +75,6 @@ const graphDefinitions = [
       relations.supersedes,
       relations.originates_from,
       relations.about,
-      relations.mentions,
     ],
   },
   {
@@ -134,37 +92,21 @@ const graphDefinitions = [
     edges: [
       relations.owns,
       relations.located_at,
-      relations.describes,
-      relations.bought_from,
-      relations.paid_via,
-      relations.includes,
-      relations.results_in,
-      relations.creates,
-      relations.settles,
     ],
   },
   {
     name: 'mnemosyne_graph',
     edges: [
-      relations.has_identity,
       relations.participates_in,
       relations.belongs_to,
       relations.latest_revision,
       relations.supersedes,
       relations.originates_from,
       relations.about,
-      relations.mentions,
       relations.owns,
       relations.located_at,
       relations.applies_to,
       relations.targets,
-      relations.bought_from,
-      relations.paid_via,
-      relations.includes,
-      relations.results_in,
-      relations.creates,
-      relations.settles,
-      relations.describes,
     ],
   },
 ];
@@ -259,10 +201,10 @@ const registryDocs = documentCollections.map((name) => ({
   _key: name,
   collection_name: name,
   kind: 'document',
-  owner: ['collection_registry', 'audit_log', 'idempotency_ledger', 'job_queue', 'job_dead_letter'].includes(name)
+  owner: ['collection_registry', 'audit_log'].includes(name)
     ? 'system'
     : 'fer',
-  soren_access: ['collection_registry', 'audit_log', 'idempotency_ledger', 'job_queue', 'job_dead_letter'].includes(name)
+  soren_access: ['collection_registry', 'audit_log'].includes(name)
     ? 'none'
     : 'ro',
   purpose: `bootstrap ${name} collection`,
@@ -289,15 +231,6 @@ const docs = {
   person: [
     { _key: 'fer', display_name: 'Fer', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
     { _key: 'friend_001', display_name: 'Friend', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
-  ],
-  identity: [
-    {
-      _key: 'fer_email',
-      source_system: 'email',
-      source_id: 'fer@example.com',
-      created_at: '2026-02-27T22:21:50Z',
-      created_by: 'seed',
-    },
   ],
   meeting: [
     {
@@ -329,6 +262,7 @@ const docs = {
       note_id: 'note_001',
       revision: 1,
       content: 'I forgot my PME Oxford shirt at my friend\'s house.',
+      observed_at: '2026-02-27T22:21:50Z',
       created_at: '2026-02-27T22:21:50Z',
       created_by: 'seed',
     },
@@ -337,6 +271,7 @@ const docs = {
       note_id: 'note_001',
       revision: 2,
       content: 'Need to pick up my blue PME Oxford shirt next Saturday.',
+      observed_at: '2026-02-27T22:26:50Z',
       created_at: '2026-02-27T22:26:50Z',
       created_by: 'seed',
     },
@@ -354,13 +289,6 @@ const docs = {
       event_kind: 'manual_edit',
       source_system: 'manual_notes',
       created_at: '2026-02-27T22:26:50Z',
-      created_by: 'seed',
-    },
-    {
-      _key: 'ev_003',
-      event_kind: 'bootstrap_purchase',
-      source_system: 'seed',
-      created_at: '2026-02-27T22:30:50Z',
       created_by: 'seed',
     },
   ],
@@ -384,91 +312,10 @@ const docs = {
       created_by: 'seed',
     },
   ],
-  follow_up_event: [
-    {
-      _key: 'fe_001',
-      kind: 'activated',
-      reason: 'Pick up forgotten shirt',
-      created_at: '2026-02-27T22:21:50Z',
-      created_by: 'seed',
-    },
-  ],
-  seller: [
-    { _key: 'seller_001', name: 'Store X', seller_kind: 'company', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  payment_method: [
-    { _key: 'pm_001', provider: 'Klarna', method_kind: 'installment', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  payment_obligation: [
-    {
-      _key: 'po_001',
-      total_amount: 240.0,
-      installments: 3,
-      currency: 'EUR',
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-  ],
-  payment: [
-    {
-      _key: 'pay_001',
-      amount: 80.0,
-      currency: 'EUR',
-      paid_at: '2026-03-01',
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-  ],
-  purchase: [
-    {
-      _key: 'purchase_001',
-      purchased_at: '2026-02-27',
-      currency: 'EUR',
-      total_amount: 240.0,
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-  ],
-  purchase_item: [
-    {
-      _key: 'pi_shirt_001',
-      quantity: 1,
-      unit_price: 120.0,
-      currency: 'EUR',
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-    {
-      _key: 'pi_ink_001',
-      quantity: 2,
-      unit_price: 60.0,
-      currency: 'EUR',
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-  ],
   item: [
     { _key: 'item_shirt_001', item_kind: 'physical', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'item_ink_001', item_kind: 'physical', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'item_ink_002', item_kind: 'physical', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
   ],
-  product_snapshot: [
-    {
-      _key: 'ps_shirt_001',
-      category: 'clothing',
-      attributes: { brand: 'PME', type: 'oxford_shirt', color: 'blue', size: 'M', fabric: 'cotton' },
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-    {
-      _key: 'ps_ink_001',
-      category: 'ink',
-      attributes: { brand: 'Pilot', line: 'Iroshizuku', color: 'kon-peki', volume_ml: 50 },
-      created_at: '2026-02-27T22:30:50Z',
-      created_by: 'seed',
-    },
-  ],
-  place: [
+  location: [
     { _key: 'friend_house_001', name: 'Friend House', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
   ],
   audit_log: [
@@ -489,9 +336,6 @@ Object.keys(docs).forEach((collectionName) => {
 });
 
 const edges = {
-  has_identity: [
-    { _key: 'fer_has_identity_email', _from: 'person/fer', _to: 'identity/fer_email', created_at: '2026-02-27T22:21:50Z', created_by: 'seed', verified: true },
-  ],
   participates_in: [
     { _key: 'fer_participates_in_mtg_001', _from: 'person/fer', _to: 'meeting/mtg_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed', verified: true },
     { _key: 'friend_participates_in_mtg_001', _from: 'person/friend_001', _to: 'meeting/mtg_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed', verified: true },
@@ -499,7 +343,6 @@ const edges = {
   belongs_to: [
     { _key: 'nr_001_belongs_to_note_001', _from: 'note_revision/nr_001', _to: 'note/note_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
     { _key: 'nr_002_belongs_to_note_001', _from: 'note_revision/nr_002', _to: 'note/note_001', created_at: '2026-02-27T22:26:50Z', created_by: 'seed' },
-    { _key: 'fe_001_belongs_to_fu_001', _from: 'follow_up_event/fe_001', _to: 'follow_up/fu_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
   ],
   latest_revision: [
     { _key: 'note_001_latest_revision_nr_002', _from: 'note/note_001', _to: 'note_revision/nr_002', created_at: '2026-02-27T22:26:50Z', created_by: 'seed' },
@@ -517,50 +360,18 @@ const edges = {
     { _key: 'nr_002_about_fu_001', _from: 'note_revision/nr_002', _to: 'follow_up/fu_001', created_at: '2026-02-27T22:26:50Z', created_by: 'seed' },
     { _key: 'nr_002_about_mtg_001', _from: 'note_revision/nr_002', _to: 'meeting/mtg_001', created_at: '2026-02-27T22:26:50Z', created_by: 'seed' },
   ],
-  mentions: [
-    { _key: 'nr_002_mentions_friend_001', _from: 'note_revision/nr_002', _to: 'person/friend_001', created_at: '2026-02-27T22:26:50Z', created_by: 'seed' },
-    { _key: 'nr_002_mentions_place_friend_house_001', _from: 'note_revision/nr_002', _to: 'place/friend_house_001', created_at: '2026-02-27T22:26:50Z', created_by: 'seed' },
-  ],
   owns: [
     { _key: 'fer_owns_item_shirt_001', _from: 'person/fer', _to: 'item/item_shirt_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'fer_owns_item_ink_001', _from: 'person/fer', _to: 'item/item_ink_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'fer_owns_item_ink_002', _from: 'person/fer', _to: 'item/item_ink_002', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
   ],
   located_at: [
-    { _key: 'item_shirt_001_located_at_friend_house_001', _from: 'item/item_shirt_001', _to: 'place/friend_house_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
-    { _key: 'state_001_located_at_friend_house_001', _from: 'state/state_001', _to: 'place/friend_house_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
+    { _key: 'item_shirt_001_located_at_friend_house_001', _from: 'item/item_shirt_001', _to: 'location/friend_house_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
+    { _key: 'state_001_located_at_friend_house_001', _from: 'state/state_001', _to: 'location/friend_house_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
   ],
   applies_to: [
     { _key: 'state_001_applies_to_item_shirt_001', _from: 'state/state_001', _to: 'item/item_shirt_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
   ],
   targets: [
     { _key: 'fu_001_targets_state_001', _from: 'follow_up/fu_001', _to: 'state/state_001', created_at: '2026-02-27T22:21:50Z', created_by: 'seed' },
-  ],
-  bought_from: [
-    { _key: 'purchase_001_bought_from_seller_001', _from: 'purchase/purchase_001', _to: 'seller/seller_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  paid_via: [
-    { _key: 'purchase_001_paid_via_pm_001', _from: 'purchase/purchase_001', _to: 'payment_method/pm_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  includes: [
-    { _key: 'purchase_001_includes_pi_shirt_001', _from: 'purchase/purchase_001', _to: 'purchase_item/pi_shirt_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'purchase_001_includes_pi_ink_001', _from: 'purchase/purchase_001', _to: 'purchase_item/pi_ink_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  results_in: [
-    { _key: 'pi_shirt_001_results_in_item_shirt_001', _from: 'purchase_item/pi_shirt_001', _to: 'item/item_shirt_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'pi_ink_001_results_in_item_ink_001', _from: 'purchase_item/pi_ink_001', _to: 'item/item_ink_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'pi_ink_001_results_in_item_ink_002', _from: 'purchase_item/pi_ink_001', _to: 'item/item_ink_002', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  creates: [
-    { _key: 'purchase_001_creates_po_001', _from: 'purchase/purchase_001', _to: 'payment_obligation/po_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-  ],
-  settles: [
-    { _key: 'pay_001_settles_po_001', _from: 'payment/pay_001', _to: 'payment_obligation/po_001', created_at: '2026-03-01T00:00:00Z', created_by: 'seed' },
-  ],
-  describes: [
-    { _key: 'ps_shirt_001_describes_item_shirt_001', _from: 'product_snapshot/ps_shirt_001', _to: 'item/item_shirt_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'ps_ink_001_describes_item_ink_001', _from: 'product_snapshot/ps_ink_001', _to: 'item/item_ink_001', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
-    { _key: 'ps_ink_001_describes_item_ink_002', _from: 'product_snapshot/ps_ink_001', _to: 'item/item_ink_002', created_at: '2026-02-27T22:30:50Z', created_by: 'seed' },
   ],
 };
 
