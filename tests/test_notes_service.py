@@ -24,7 +24,7 @@ def test_create_and_get_note_round_trip(notes_service: NotesService) -> None:
                     kind="item",
                     ref=EntityRef(collection="item", key="item_shirt_001"),
                 ),
-                UnresolvedAboutInput(kind="place", label="John's place"),
+                UnresolvedAboutInput(kind="location", label="John's place"),
             ],
         )
     )
@@ -38,7 +38,7 @@ def test_create_and_get_note_round_trip(notes_service: NotesService) -> None:
         {"kind": "item", "collection": "item", "key": "item_shirt_001"}
     ]
     assert dump_models(fetched.pending_about) == [
-        {"kind": "place", "label": "John's place"}
+        {"kind": "location", "label": "John's place"}
     ]
 
 
@@ -48,7 +48,7 @@ def test_patch_addendum_and_pending_about_dedupe(
     created = notes_service.create_note(
         CreateNoteRequest(
             content="Need to pick up my shirt.",
-            about=[UnresolvedAboutInput(kind="place", label="John's place")],
+            about=[UnresolvedAboutInput(kind="location", label="John's place")],
         )
     )
 
@@ -57,7 +57,7 @@ def test_patch_addendum_and_pending_about_dedupe(
         PatchNoteRequest(
             addendum="It is the blue one.",
             add_about=[
-                UnresolvedAboutInput(kind="place", label="  john's   place  "),
+                UnresolvedAboutInput(kind="location", label="  john's   place  "),
                 ResolvedAboutInput(
                     kind="item",
                     ref=EntityRef(collection="item", key="item_shirt_001"),
@@ -76,7 +76,7 @@ def test_patch_addendum_and_pending_about_dedupe(
         patched.content == "Need to pick up my shirt.\n\nAddendum:\nIt is the blue one."
     )
     assert dump_models(patched.pending_about) == [
-        {"kind": "place", "label": "John's place"}
+        {"kind": "location", "label": "John's place"}
     ]
     assert dump_models(patched.resolved_about) == [
         {"kind": "item", "collection": "item", "key": "item_shirt_001"}
@@ -89,7 +89,7 @@ def test_put_creates_fully_specified_revision_without_inheriting_context(
     created = notes_service.create_note(
         CreateNoteRequest(
             content="Need to pick up my shirt.",
-            about=[UnresolvedAboutInput(kind="place", label="John's place")],
+            about=[UnresolvedAboutInput(kind="location", label="John's place")],
         )
     )
 
@@ -169,7 +169,7 @@ def test_search_notes_uses_pending_about_labels_from_latest_revision(
     created = notes_service.create_note(
         CreateNoteRequest(
             content="Need to pick up my notebook.",
-            about=[UnresolvedAboutInput(kind="place", label="Utrecht Central")],
+            about=[UnresolvedAboutInput(kind="location", label="Utrecht Central")],
         )
     )
 

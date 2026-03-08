@@ -15,13 +15,7 @@ EntityKind: TypeAlias = Literal[
     "state",
     "follow_up",
     "item",
-    "purchase",
-    "purchase_item",
-    "seller",
-    "payment_method",
-    "payment_obligation",
-    "payment",
-    "place",
+    "location",
     "note",
 ]
 

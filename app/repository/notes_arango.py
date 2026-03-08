@@ -392,33 +392,18 @@ class ArangoNotesRepository(NotesRepository):
         return aliases
 
     def _label_for_target(self, collection: str, key: str) -> str:
-        if collection == "item":
-            snapshot = next(
-                self.db.aql.execute(
-                    """
-                    FOR snap IN product_snapshot
-                      FILTER CONCAT('item/', @key) IN (
-                        FOR edge IN describes
-                          FILTER edge._from == CONCAT('product_snapshot/', snap._key)
-                          RETURN edge._to
-                      )
-                      LIMIT 1
-                      RETURN snap
-                    """,
-                    bind_vars={"key": key},
-                ),
-                None,
-            )
-            if snapshot is not None:
-                attributes = snapshot.get("attributes", {})
-                values = [str(value) for value in attributes.values()]
-                return " ".join(values)
-
         doc = self.db.collection(collection).get(key)
         if doc is None:
             return f"{collection} {key}".replace("_", " ")
 
-        for field in ("display_name", "title", "name", "provider", "kind", "note_id"):
+        for field in (
+            "display_name",
+            "title",
+            "name",
+            "item_kind",
+            "kind",
+            "note_id",
+        ):
             if field in doc and doc[field]:
                 return str(doc[field])
 

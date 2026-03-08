@@ -52,7 +52,7 @@ def test_create_note_updates_note_anchor_search_fields(
     payload = NoteWritePayload(
         content=f"Need to pick up my {token} tomorrow.",
         observed_at=time_to_utc_iso_free(),
-        pending_about=[PendingAboutRecord(kind="place", label=token)],
+        pending_about=[PendingAboutRecord(kind="location", label=token)],
         event_kind="manual_note",
     )
 

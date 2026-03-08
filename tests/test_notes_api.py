@@ -21,7 +21,7 @@ def test_create_note_endpoint_returns_note_view() -> None:
                         "kind": "item",
                         "ref": {"collection": "item", "key": "item_shirt_001"},
                     },
-                    {"kind": "place", "label": "John's place"},
+                    {"kind": "location", "label": "John's place"},
                 ],
             },
         )
@@ -36,7 +36,7 @@ def test_create_note_endpoint_returns_note_view() -> None:
     assert payload["resolved_about"] == [
         {"kind": "item", "collection": "item", "key": "item_shirt_001"}
     ]
-    assert payload["pending_about"] == [{"kind": "place", "label": "John's place"}]
+    assert payload["pending_about"] == [{"kind": "location", "label": "John's place"}]
 
 
 def test_put_note_endpoint_returns_conflict_in_shared_error_shape() -> None:
@@ -151,7 +151,7 @@ def test_search_notes_endpoint_can_match_pending_about_labels() -> None:
             "/notes",
             json={
                 "content": "Need to pick up my notebook.",
-                "about": [{"kind": "place", "label": "Utrecht Central"}],
+                "about": [{"kind": "location", "label": "Utrecht Central"}],
             },
         )
         note_id = created.json()["note_id"]
