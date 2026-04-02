@@ -1,0 +1,446 @@
+version: 1
+kind: github_release_tracker_import
+
+repo:
+  owner: fcrozetta
+  name: mnemosyne
+  full_name: fcrozetta/mnemosyne
+  visibility: public
+
+release:
+  display_name: "0.1.0 (Alpha)"
+  recommended_tag: "v0.1.0-alpha.1"
+  due_on: "2026-04-24"
+  target_date_reason: "last Friday of April 2026"
+
+milestone:
+  title: "0.1.0 (Alpha)"
+  description: |
+    First public developer preview of Mnemosyne as a self-hosted, single-user,
+    API-first memory system for agents and humans.
+
+    This milestone intentionally excludes multi-user support, SaaS/hosting,
+    workflow-engine coupling, plugin ecosystem work, and advanced UI.
+  due_on: "2026-04-24"
+
+labels:
+  - name: "type:epic"
+    color: "5319e7"
+    description: "Parent issue grouping related work"
+  - name: "type:feature"
+    color: "1d76db"
+    description: "Feature work"
+  - name: "type:docs"
+    color: "0e8a16"
+    description: "Documentation work"
+  - name: "type:release"
+    color: "b60205"
+    description: "Release-train work"
+  - name: "type:infra"
+    color: "0052cc"
+    description: "Infrastructure or environment work"
+  - name: "type:qa"
+    color: "fbca04"
+    description: "Verification, testing, hardening"
+
+  - name: "area:contract"
+    color: "c2e0c6"
+    description: "Public contracts, schema, API model"
+  - name: "area:storage"
+    color: "bfd4f2"
+    description: "Persistence and write path"
+  - name: "area:retrieval"
+    color: "d4c5f9"
+    description: "Search and context retrieval"
+  - name: "area:events"
+    color: "f9d0c4"
+    description: "Events and reminders"
+  - name: "area:entity-resolution"
+    color: "fef2c0"
+    description: "Entity matching and unresolved state"
+  - name: "area:docs"
+    color: "c5def5"
+    description: "Documentation and examples"
+  - name: "area:devex"
+    color: "bfdadc"
+    description: "Developer experience and install path"
+  - name: "area:release"
+    color: "e99695"
+    description: "Release coordination"
+
+  - name: "phase:0"
+    color: "ededed"
+    description: "Scope freeze and public contract"
+  - name: "phase:1"
+    color: "ededed"
+    description: "Data model and write path"
+  - name: "phase:2"
+    color: "ededed"
+    description: "Retrieval and context"
+  - name: "phase:3"
+    color: "ededed"
+    description: "Install path, docs, examples"
+  - name: "phase:4"
+    color: "ededed"
+    description: "Hardening and dogfooding"
+  - name: "phase:5"
+    color: "ededed"
+    description: "Release prep"
+
+  - name: "prio:p0"
+    color: "b60205"
+    description: "Must land for alpha"
+  - name: "prio:p1"
+    color: "fbca04"
+    description: "Important but cuttable"
+  - name: "prio:p2"
+    color: "0e8a16"
+    description: "Optional / later"
+
+project:
+  create_if_missing: true
+  owner_type: user
+  owner: fcrozetta
+  title: "Mnemosyne 0.1.0 Alpha"
+  short_description: "Single-developer release board for Mnemosyne alpha"
+  item_source_filter:
+    milestone_title: "0.1.0 (Alpha)"
+  custom_fields:
+    - name: Status
+      data_type: single_select
+      options: [Backlog, Ready, In Progress, Blocked, Done]
+    - name: Phase
+      data_type: single_select
+      options: [Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5]
+    - name: Area
+      data_type: single_select
+      options: [Release, Contract, Storage, Retrieval, Events, Entity Resolution, DevEx, Docs]
+    - name: Priority
+      data_type: single_select
+      options: [P0, P1, P2]
+  views:
+    - name: Board by Status
+      layout: board
+      group_by: Status
+      filter: 'milestone:"0.1.0 (Alpha)"'
+    - name: Board by Parent Issue
+      layout: board
+      group_by: Parent issue
+      filter: 'milestone:"0.1.0 (Alpha)"'
+    - name: Table by Phase
+      layout: table
+      group_by: Phase
+      filter: 'milestone:"0.1.0 (Alpha)"'
+
+import_rules:
+  idempotent: true
+  do_not_duplicate_by_title: true
+  prefer_existing_labels: true
+  prefer_existing_milestone: true
+  prefer_existing_project: true
+  use_parent_sub_issue_hierarchy: true
+  use_project_custom_fields: true
+  do_not_use_issue_fields: true
+  add_all_created_items_to_project: true
+  link_children_after_parent_creation: true
+  if_project_view_creation_is_not_supported:
+    record_manual_follow_up_in_pr_comment: true
+  if_sub_issue_linking_requires_graphql:
+    graphql_is_allowed: true
+
+parents:
+  - key: epic-00
+    title: "EPIC-00 · 0.1.0 (Alpha) Release Train"
+    body_from_file: "docs/releases/0.1.0-alpha/issues/EPIC-00-release-train.md"
+    milestone: "0.1.0 (Alpha)"
+    labels: ["type:epic", "type:release", "area:release", "phase:0", "prio:p0"]
+    project_fields:
+      Status: Backlog
+      Phase: "Phase 0"
+      Area: Release
+      Priority: P0
+    children:
+      - title: "Create milestone, labels, and project shell for 0.1.0 (Alpha)"
+        labels: ["type:release", "area:release", "phase:0", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 0", Area: Release, Priority: P0}
+        body: |
+          ## Outcome
+          Create the native GitHub scaffolding for the alpha release.
+
+          ## Done when
+          - milestone `0.1.0 (Alpha)` exists
+          - required labels exist
+          - project `Mnemosyne 0.1.0 Alpha` exists
+          - all are reusable/idempotent for future sync runs
+      - title: "Import parent issues and sub-issues from release manifest"
+        labels: ["type:release", "area:release", "phase:0", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 0", Area: Release, Priority: P0}
+        body: |
+          ## Outcome
+          Create the parent/sub issue hierarchy defined in `github-import.manifest.yaml`.
+
+          ## Done when
+          - each parent exists once
+          - each child exists once
+          - each child is linked to the correct parent issue
+      - title: "Configure project views and field defaults"
+        labels: ["type:release", "area:release", "phase:0", "prio:p1"]
+        project_fields: {Status: Backlog, Phase: "Phase 0", Area: Release, Priority: P1}
+        body: |
+          ## Outcome
+          Configure the project so it is usable immediately.
+
+          ## Done when
+          - custom fields exist: Status, Phase, Area, Priority
+          - board view grouped by Status exists or a manual-follow-up note is recorded
+          - parent-issue grouping view exists or a manual-follow-up note is recorded
+          - table grouped by Phase exists or a manual-follow-up note is recorded
+
+  - key: epic-01
+    title: "EPIC-01 · Scope Freeze and Public Contract"
+    body_from_file: "docs/releases/0.1.0-alpha/issues/EPIC-01-scope-contract.md"
+    milestone: "0.1.0 (Alpha)"
+    labels: ["type:epic", "area:contract", "phase:0", "prio:p0"]
+    project_fields:
+      Status: Backlog
+      Phase: "Phase 0"
+      Area: Contract
+      Priority: P0
+    children:
+      - title: "Freeze product cut and non-goals for alpha"
+        labels: ["type:feature", "area:contract", "phase:0", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 0", Area: Contract, Priority: P0}
+        body: |
+          Define exactly what 0.1.0 alpha is and what it is not.
+
+          ## Done when
+          - target user is explicit
+          - in-scope / out-of-scope is explicit
+          - release gates are explicit
+      - title: "Define artifact model v0.1"
+        labels: ["type:feature", "area:contract", "phase:0", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 0", Area: Contract, Priority: P0}
+        body: |
+          Define the minimal artifact types and required fields for alpha.
+
+          ## Done when
+          - note/entity/relationship/event/reminder/source are defined
+          - minimum required fields are written
+          - unresolved entity state is defined
+      - title: "Define public API contracts for ingest, search, and context"
+        labels: ["type:feature", "area:contract", "phase:0", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 0", Area: Contract, Priority: P0}
+        body: |
+          Define the external request/response shapes for alpha.
+
+          ## Done when
+          - ingest contract exists
+          - search contract exists
+          - context response contract exists
+          - update/version write semantics exist
+      - title: "Define error model and schema versioning"
+        labels: ["type:feature", "area:contract", "phase:0", "prio:p1"]
+        project_fields: {Status: Backlog, Phase: "Phase 0", Area: Contract, Priority: P1}
+        body: |
+          Prevent accidental contract drift.
+
+          ## Done when
+          - error response format exists
+          - schema/version signaling exists
+          - DB internals do not leak into public API names
+
+  - key: epic-02
+    title: "EPIC-02 · Core Write Path and Store Semantics"
+    body_from_file: "docs/releases/0.1.0-alpha/issues/EPIC-02-write-path-store.md"
+    milestone: "0.1.0 (Alpha)"
+    labels: ["type:epic", "area:storage", "phase:1", "prio:p0"]
+    project_fields:
+      Status: Backlog
+      Phase: "Phase 1"
+      Area: Storage
+      Priority: P0
+    children:
+      - title: "Bootstrap storage and service skeleton"
+        labels: ["type:infra", "area:storage", "phase:1", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 1", Area: Storage, Priority: P0}
+        body: |
+          Create the first backend skeleton required for alpha persistence.
+
+          ## Done when
+          - storage bootstrap path exists
+          - repository/service layer exists
+          - core structures can be initialized locally
+      - title: "Implement one-shot ingest endpoint"
+        labels: ["type:feature", "area:storage", "phase:1", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 1", Area: Storage, Priority: P0}
+        body: |
+          Support one request containing source note plus structured memory hints.
+
+          ## Done when
+          - people/places/items/events can be linked in one flow
+          - one realistic note example can be persisted end to end
+      - title: "Implement versioned artifact updates"
+        labels: ["type:feature", "area:storage", "phase:1", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 1", Area: Storage, Priority: P0}
+        body: |
+          Prevent silent overwrites.
+
+          ## Done when
+          - append-only or versioned update path exists
+          - destructive empty updates are rejected
+          - optimistic concurrency or equivalent guard exists
+      - title: "Capture provenance and unresolved entity state on write"
+        labels: ["type:feature", "area:entity-resolution", "phase:1", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 1", Area: "Entity Resolution", Priority: P0}
+        body: |
+          Make trust visible.
+
+          ## Done when
+          - provenance metadata is stored on writes
+          - unresolved entities are explicit
+          - confidence/ambiguity is not silently flattened
+
+  - key: epic-03
+    title: "EPIC-03 · Retrieval and Context API"
+    body_from_file: "docs/releases/0.1.0-alpha/issues/EPIC-03-retrieval-context.md"
+    milestone: "0.1.0 (Alpha)"
+    labels: ["type:epic", "area:retrieval", "phase:2", "prio:p0"]
+    project_fields:
+      Status: Backlog
+      Phase: "Phase 2"
+      Area: Retrieval
+      Priority: P0
+    children:
+      - title: "Implement fetch-by-id and search endpoints"
+        labels: ["type:feature", "area:retrieval", "phase:2", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 2", Area: Retrieval, Priority: P0}
+        body: |
+          Add the minimum read surface needed for alpha.
+
+          ## Done when
+          - fetch-by-id exists
+          - search endpoint exists
+          - notes/entities/events are queryable
+      - title: "Implement related-context and context-bundle retrieval"
+        labels: ["type:feature", "area:retrieval", "phase:2", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 2", Area: Retrieval, Priority: P0}
+        body: |
+          Turn stored memory into usable context.
+
+          ## Done when
+          - related nodes/neighborhood context exists
+          - compact context bundle endpoint exists
+          - provenance and unresolved state survive retrieval
+      - title: "Validate alpha query flows against sample data"
+        labels: ["type:qa", "area:retrieval", "phase:2", "prio:p1"]
+        project_fields: {Status: Backlog, Phase: "Phase 2", Area: Retrieval, Priority: P1}
+        body: |
+          Verify the core alpha questions.
+
+          ## Done when
+          - “what do I know about X?” works
+          - “what happened related to Y?” works
+          - “what notes mention Z?” works
+          - “what should I remember before talking to P?” works
+
+  - key: epic-04
+    title: "EPIC-04 · Install Path, Docs, and Developer Experience"
+    body_from_file: "docs/releases/0.1.0-alpha/issues/EPIC-04-install-docs-dx.md"
+    milestone: "0.1.0 (Alpha)"
+    labels: ["type:epic", "area:devex", "area:docs", "phase:3", "prio:p0"]
+    project_fields:
+      Status: Backlog
+      Phase: "Phase 3"
+      Area: DevEx
+      Priority: P0
+    children:
+      - title: "Add Docker Compose stack and env example"
+        labels: ["type:infra", "area:devex", "phase:3", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 3", Area: DevEx, Priority: P0}
+        body: |
+          Provide the minimum reproducible install surface.
+
+          ## Done when
+          - compose file exists
+          - `.env.example` exists
+          - health check exists
+      - title: "Replace placeholder README with real quickstart"
+        labels: ["type:docs", "area:docs", "phase:3", "prio:p0"]
+        project_fields: {Status: Ready, Phase: "Phase 3", Area: Docs, Priority: P0}
+        body: |
+          The repository front door must stop looking unfinished.
+
+          ## Done when
+          - README explains what Mnemosyne is
+          - quickstart exists
+          - non-goals and scope are visible
+      - title: "Add concepts, trust model, and API example docs"
+        labels: ["type:docs", "area:docs", "phase:3", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 3", Area: Docs, Priority: P0}
+        body: |
+          Document the alpha clearly enough for an external developer.
+
+          ## Done when
+          - concepts doc exists
+          - trust model doc exists
+          - API example docs exist
+      - title: "Add sample seed and end-to-end example flow"
+        labels: ["type:docs", "area:devex", "phase:3", "prio:p1"]
+        project_fields: {Status: Backlog, Phase: "Phase 3", Area: DevEx, Priority: P1}
+        body: |
+          Make the alpha testable without guesswork.
+
+          ## Done when
+          - sample requests exist
+          - sample data or seed path exists
+          - one realistic end-to-end example exists
+
+  - key: epic-05
+    title: "EPIC-05 · Hardening, Dogfooding, and Release"
+    body_from_file: "docs/releases/0.1.0-alpha/issues/EPIC-05-hardening-release.md"
+    milestone: "0.1.0 (Alpha)"
+    labels: ["type:epic", "type:qa", "area:release", "phase:4", "prio:p0"]
+    project_fields:
+      Status: Backlog
+      Phase: "Phase 4"
+      Area: Release
+      Priority: P0
+    children:
+      - title: "Add backup/export path and verification checklist"
+        labels: ["type:qa", "area:release", "phase:4", "prio:p1"]
+        project_fields: {Status: Backlog, Phase: "Phase 4", Area: Release, Priority: P1}
+        body: |
+          Prevent alpha users from being trapped.
+
+          ## Done when
+          - backup/export path exists
+          - verification checklist exists
+      - title: "Dogfood one real memory scenario and fix blockers"
+        labels: ["type:qa", "area:release", "phase:4", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 4", Area: Release, Priority: P0}
+        body: |
+          Exercise the system on a realistic note flow.
+
+          ## Done when
+          - one real end-to-end scenario has been executed
+          - p0 blockers discovered are logged and triaged
+      - title: "Draft changelog, release notes, and known limitations"
+        labels: ["type:release", "area:release", "phase:5", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 5", Area: Release, Priority: P0}
+        body: |
+          Prepare honest alpha release assets.
+
+          ## Done when
+          - changelog exists
+          - release notes exist
+          - known limitations doc exists
+      - title: "Make final go/no-go decision and tag plan"
+        labels: ["type:release", "area:release", "phase:5", "prio:p0"]
+        project_fields: {Status: Backlog, Phase: "Phase 5", Area: Release, Priority: P0}
+        body: |
+          Close the loop on the release train.
+
+          ## Done when
+          - green/amber/red decision is recorded
+          - publish/no-publish decision is recorded
+          - tag name is finalized
