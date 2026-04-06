@@ -24,7 +24,7 @@ classDiagram
     }
 
     class AboutRef {
-      +kind: person|place|item|topic|other
+      +kind: person|location|item|topic|other
       +ref?: object
       +label?: string
     }
@@ -71,6 +71,20 @@ flowchart TD
 - Previous revisions are retained.
 - Normal reads return the latest note snapshot.
 - Unresolved references stay unresolved as labels until a later explicit resolution step exists.
+
+## `about.kind` Vocabulary
+
+Alpha keeps the public `kind` vocabulary intentionally small:
+
+- `person`
+- `location`
+- `item`
+- `topic`
+- `other`
+
+`topic` is not a free-form tag system. It means the note is explicitly about a
+subject area or discussion topic the writer wants to preserve as note context.
+If it starts behaving like arbitrary label spam, the model has failed.
 
 ## Explicitly Out Of Scope For Alpha
 

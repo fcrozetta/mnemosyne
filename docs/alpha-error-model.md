@@ -1,7 +1,7 @@
 # Mnemosyne Alpha Error Model And Schema Versioning
 
-This document defines the shared error payload and the schema-version signaling
-rules for `0.1.0-alpha`.
+This document defines the shared error payload for `0.1.0-alpha` and records
+what is explicitly deferred.
 
 See also: [Alpha API contract](./alpha-api-contract.md)
 
@@ -10,8 +10,8 @@ See also: [Alpha API contract](./alpha-api-contract.md)
 For alpha, Mnemosyne uses:
 
 - one shared JSON error shape across note endpoints
-- one explicit response header for schema-version signaling
-- stable public error codes that do not leak DB or graph internals
+- a minimal set of stable public error names that do not leak DB or graph
+  internals
 
 That is enough for alpha. Anything more elaborate is ceremony.
 
@@ -64,19 +64,15 @@ flowchart TD
     F -- yes --> H[2xx success response]
 ```
 
-## Alpha Error Catalog
+## Current Alpha Errors
 
-The exact catalog can grow, but alpha should at least reserve these stable
-top-level identifiers:
+Alpha only needs the errors already implied by the current write/read surface:
 
-- `validation_error`
 - `invalid_note_patch`
 - `note_not_found`
 - `version_conflict`
-- `internal_error`
 
-Detail `code` values may be narrower, but should remain aligned with the same
-public vocabulary.
+Anything broader can wait until the API surface is larger.
 
 ## Public Naming Rules
 
@@ -86,27 +82,11 @@ public vocabulary.
 - `note_not_found` is acceptable
 - `latest_revision_edge_missing` is not
 
-## Schema Version Signaling
-
-Alpha uses one response header:
-
-```http
-X-Mnemosyne-Schema-Version: 0.1.0-alpha
-```
-
-Rules:
-
-- success and error responses should expose the same schema version header
-- payload bodies do not need an extra `schema_version` field in alpha
-- the public contract version is signaled at the HTTP layer, not by leaking
-  storage revision ids
-- breaking API contract changes require a schema-version bump and updated docs
-
 ## Version Semantics
 
-Do not conflate schema version with note version.
+Do not conflate API contract version with note version.
 
-- `X-Mnemosyne-Schema-Version` describes the public API contract version
+- the public API contract is currently documented, not header-versioned
 - `version` inside note payloads describes optimistic concurrency for one note
 
 Those are different things and should stay different.
@@ -117,11 +97,11 @@ For `0.1.0-alpha`, the required guarantees are:
 
 - `400`, `404`, and `409` use the shared `ErrorResponse` shape
 - note writes and reads use stable public error names
-- schema-version signaling exists and is explicit
 - public docs refer to public API terms, not DB internals
 
 ## Deferred
 
+- schema-version signaling headers
 - path or media-type versioning
 - multi-schema negotiation
 - endpoint-specific error envelopes
