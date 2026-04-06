@@ -2,7 +2,7 @@
 
 This document captures the intended `0.1.0-alpha` data model at a level that is concrete enough to build against without pretending the richer post-alpha taxonomy already exists.
 
-See also: [Alpha API contract](alpha-api-contract.md)
+See also: [Alpha API contract](./alpha-api-contract.md)
 
 ## Public Alpha Model
 
