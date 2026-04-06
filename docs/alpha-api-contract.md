@@ -6,6 +6,8 @@ It is intentionally narrower than the eventual platform. The alpha is a
 note-first memory API for agents. It does not expose revision edges, graph
 internals, or conversational session state.
 
+See also: [Alpha error model](./alpha-error-model.md)
+
 ## Contract Rules
 
 - The API is stateless with respect to chat/session context.
@@ -331,6 +333,7 @@ Rules:
 
 ## Version And Error Semantics
 
+- responses should expose `X-Mnemosyne-Schema-Version: 0.1.0-alpha`
 - `version` is the client-facing optimistic concurrency field.
 - Stale `version` values return `409 Conflict`.
 - Missing notes return `404 Not Found`.
