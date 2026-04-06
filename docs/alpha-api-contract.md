@@ -6,18 +6,20 @@ It is intentionally narrower than the eventual platform. The alpha is a
 note-first memory API for agents. It does not expose revision edges, graph
 internals, or conversational session state.
 
+See also: [Alpha error model](./alpha-error-model.md)
+
 ## Contract Rules
 
 - The API is stateless with respect to chat/session context.
 - Clients own note targeting and short-lived conversational context.
 - The API exposes stable `note_id` and integer `version`, not revision graph
   mechanics.
-- `PUT` creates a fully specified new version and does not inherit prior note
-  content or context.
 - `PATCH` derives a new version from the latest note state and merges
   `add_about` deterministically.
 - Search operates on the latest visible note state only.
 - Context responses are note-centric JSON, not graph-shaped storage leaks.
+- Alpha uses `PATCH` as the only update operation. Full-replacement `PUT`
+  semantics are deferred.
 
 ## Endpoint Flow
 
@@ -240,42 +242,6 @@ Response:
 - `404 Not Found`
 - body: `ErrorResponse`
 
-### `PUT /notes/{note_id}`
-
-Creates a fully specified new note version.
-
-Request body:
-
-```json
-{
-  "content": "Need to pick up my blue shirt on Saturday.",
-  "about": [
-    {
-      "kind": "item",
-      "ref": {
-        "collection": "item",
-        "key": "item_shirt_001"
-      }
-    }
-  ],
-  "observed_at": "2026-04-06T18:00:00Z",
-  "version": 1
-}
-```
-
-Response:
-- `200 OK`
-- body: `NoteView`
-- `404 Not Found`
-- body: `ErrorResponse`
-- `409 Conflict`
-- body: `ErrorResponse`
-
-Rules:
-- creates a new version of the same logical note
-- requires the expected latest `version` for optimistic concurrency
-- does not inherit prior content or prior `about` context implicitly
-
 ### `PATCH /notes/{note_id}`
 
 Creates a derived new note version from the latest visible note.
@@ -310,6 +276,9 @@ Rules:
 - derives from the latest visible note
 - appends structured addendum content rather than replacing content wholesale
 - merges `add_about` into the new version with deterministic dedupe
+- if `observed_at` is omitted, the latest revision value is retained
+- if `observed_at` is provided, it replaces the latest revision value in the
+  new revision
 - fails if no patch operation was requested
 
 ### `GET /notes/{note_id}/context`
@@ -326,6 +295,12 @@ Rules:
 - note-centric response, not raw graph/path output
 - related notes are returned as ranked latest-note summaries
 - context basis is explicit: resolved and pending about values used for context
+- related notes are selected by:
+  - shared resolved `about` refs, and
+  - normalized pending labels matched case-insensitively
+- the anchor note itself is excluded
+- ranking is overlap count first, recency second
+- alpha should cap related notes to a small list such as `5`
 - this contract is defined now for alpha retrieval work, even if implementation
   lands later than the write/search endpoints
 
@@ -336,6 +311,7 @@ Rules:
 - Missing notes return `404 Not Found`.
 - Semantically invalid patch requests return `400 Bad Request`.
 - Error payloads use the shared `ErrorResponse` shape across note endpoints.
+- Schema-version signaling is deferred for alpha and documented separately.
 
 ## Explicit Non-Goals For Alpha
 
@@ -343,3 +319,4 @@ Rules:
 - exposing raw Arango documents or graph edge names
 - conversational/session-state interpretation inside the API runtime
 - first-class entity/relationship/event/reminder write APIs
+- full-replacement `PUT /notes/{note_id}` semantics
