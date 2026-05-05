@@ -77,7 +77,7 @@ Anything broader can wait until the API surface is larger.
 ## Public Naming Rules
 
 - error names must describe API behavior, not storage internals
-- do not expose collection names, edge names, AQL terms, or Arango-specific
+- do not expose table names, relation names, SurrealQL terms, or SurrealDB-specific
   implementation details in `error` or `code`
 - `note_not_found` is acceptable
 - `latest_revision_edge_missing` is not
