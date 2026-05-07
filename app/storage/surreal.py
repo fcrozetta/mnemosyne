@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 from app.storage.bootstrap import (
     FieldSpec,
     IndexSpec,
+    StorageLayout,
     StorageLayoutConflict,
     TableKind,
     TableSpec,
@@ -159,11 +160,18 @@ class SurrealStorageBackend:
         in_record: str,
         out_record: str,
         data: dict[str, Any],
+        *,
+        replace_existing_in: bool = False,
     ) -> bool:
         relation_id = _record_id(table, key)
         created = not self.record_exists(relation_id)
 
         if created:
+            if replace_existing_in:
+                self.query(
+                    f"DELETE {table} WHERE in = {in_record} "
+                    f"AND id != {relation_id} RETURN NONE;"
+                )
             self.query(
                 f"RELATE {in_record}->{relation_id}->{out_record} "
                 f"CONTENT {_to_surql(data)} RETURN NONE;"
@@ -172,6 +180,50 @@ class SurrealStorageBackend:
             self.query(f"UPDATE {relation_id} MERGE {_to_surql(data)} RETURN NONE;")
 
         return created
+
+    def matches_layout(self, layout: StorageLayout) -> bool:
+        try:
+            database_info = self._database_info()
+            if not isinstance(database_info.get("tables"), dict):
+                return False
+
+            table_definitions = database_info["tables"]
+            table_infos: dict[str, dict[str, Any]] = {}
+
+            for table in layout.tables:
+                definition = table_definitions.get(table.name)
+                if definition is None:
+                    return False
+                self._validate_table(table, definition)
+                table_infos[table.name] = self._table_info(table.name)
+
+            for view in layout.views:
+                definition = table_definitions.get(view.name)
+                if definition is None:
+                    return False
+                self._validate_view(view, definition)
+
+            for field in layout.fields:
+                definition = (
+                    table_infos.get(field.table, {})
+                    .get("fields", {})
+                    .get(field.name)
+                )
+                if definition is None:
+                    return False
+                self._validate_field(field, definition)
+
+            for index in layout.indexes:
+                definition = table_infos.get(index.table, {}).get("indexes", {}).get(
+                    index.identity
+                )
+                if definition is None:
+                    return False
+                self._validate_index(index, definition)
+        except (StorageLayoutConflict, SurrealRequestError):
+            return False
+
+        return True
 
     def record_exists(self, record_id: str) -> bool:
         result = self.query(f"SELECT VALUE id FROM ONLY {record_id};")

@@ -168,6 +168,72 @@ def test_surreal_database_user_signin_uses_database_scope(
     }
 
 
+def test_surreal_upsert_relation_replaces_existing_in_edge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queries: list[str] = []
+
+    def fake_record_exists(self: SurrealStorageBackend, record_id: str) -> bool:
+        assert record_id == "note_current_revision:note_001_current_note_001_v2"
+        return False
+
+    def fake_query(self: SurrealStorageBackend, sql: str) -> None:
+        queries.append(sql)
+        return None
+
+    monkeypatch.setattr(SurrealStorageBackend, "record_exists", fake_record_exists)
+    monkeypatch.setattr(SurrealStorageBackend, "query", fake_query)
+
+    backend = SurrealStorageBackend(
+        base_url="http://127.0.0.1:8000",
+        namespace="mnemosyne",
+        database="mnemosyne",
+    )
+
+    created = backend.upsert_relation(
+        "note_current_revision",
+        "note_001_current_note_001_v2",
+        "note_roots:note_001",
+        "note_revisions:note_001_v2",
+        {"edge_key": "note_001_current_note_001_v2"},
+        replace_existing_in=True,
+    )
+
+    assert created is True
+    assert queries == [
+        "DELETE note_current_revision WHERE in = note_roots:note_001 "
+        "AND id != note_current_revision:note_001_current_note_001_v2 RETURN NONE;",
+        "RELATE note_roots:note_001->"
+        "note_current_revision:note_001_current_note_001_v2->"
+        "note_revisions:note_001_v2 CONTENT "
+        '{"edge_key":"note_001_current_note_001_v2"} '
+        "RETURN NONE;",
+    ]
+
+
+def test_surreal_matches_layout_returns_false_when_relation_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_database_info(self: SurrealStorageBackend) -> dict[str, object]:
+        return {
+            "tables": {
+                spec.name: {"sql": "placeholder"}
+                for spec in ALPHA_STORAGE_LAYOUT.tables
+                if spec.name != "note_current_revision"
+            }
+        }
+
+    monkeypatch.setattr(SurrealStorageBackend, "_database_info", fake_database_info)
+
+    backend = SurrealStorageBackend(
+        base_url="http://127.0.0.1:8000",
+        namespace="mnemosyne",
+        database="mnemosyne",
+    )
+
+    assert backend.matches_layout(ALPHA_STORAGE_LAYOUT) is False
+
+
 def test_notes_is_latest_revision_view() -> None:
     notes_view = next(
         view for view in ALPHA_STORAGE_LAYOUT.views if view.name == "notes"

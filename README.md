@@ -9,9 +9,10 @@ Project that aims to be a place where humans and AI can share their brains.
 
 ## Local Backend Skeleton
 
-The alpha backend starts as a minimal FastAPI app with an in-memory storage
-bootstrap path. It defines the note repository and service boundaries needed
-before the write endpoints land.
+The alpha backend starts as a minimal FastAPI app with repository and service
+boundaries plus a SurrealDB-backed storage readiness check. Runtime defaults to
+`MNEMOSYNE_STORAGE_BACKEND=surreal`; use `in-memory` only when you explicitly
+want a no-DB skeleton.
 
 ```shell
 uv run pytest -q
@@ -51,8 +52,10 @@ make db-clean
 make seed
 ```
 
-The app entrypoint is `app.main:app`. The current health endpoint initializes
-the alpha storage layout and reports whether the local repository is ready:
+The app entrypoint is `app.main:app`. `/healthz` is now fail-closed: it returns
+`503` unless the selected backend is actually usable. In `surreal` mode that
+means the server is reachable, the `mnemosyne` database user can sign in, and
+the expected schema/view/index layout is present.
 
 ```shell
 uv run fastapi dev app/main.py
