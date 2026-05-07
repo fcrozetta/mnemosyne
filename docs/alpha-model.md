@@ -50,7 +50,7 @@ flowchart TD
     RV1[Revision v1]
     RV2[Revision v2]
     AR1[AboutRef person ref]
-    AR2[AboutRef place label]
+    AR2[AboutRef location label]
     PR[Provenance]
 
     N -->|HAS_VERSION| RV1

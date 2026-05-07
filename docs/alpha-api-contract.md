@@ -59,7 +59,7 @@ sequenceDiagram
 
 ```json
 {
-  "kind": "place",
+  "kind": "location",
   "label": "John's place"
 }
 ```
@@ -82,7 +82,7 @@ sequenceDiagram
   ],
   "pending_about": [
     {
-      "kind": "place",
+      "kind": "location",
       "label": "John's place"
     }
   ]
@@ -144,7 +144,7 @@ work has a concrete target, even if implementation lands later.
     ],
     "pending_about": [
       {
-        "kind": "place",
+        "kind": "location",
         "label": "John's place"
       }
     ]
@@ -159,7 +159,7 @@ work has a concrete target, even if implementation lands later.
     ],
     "pending_about": [
       {
-        "kind": "place",
+        "kind": "location",
         "label": "John's place"
       }
     ]
@@ -196,7 +196,7 @@ Request body:
       }
     },
     {
-      "kind": "place",
+      "kind": "location",
       "label": "John's place"
     }
   ],
@@ -253,7 +253,7 @@ Request body:
   "addendum": "It is the blue one.",
   "add_about": [
     {
-      "kind": "place",
+      "kind": "location",
       "label": "John's place"
     }
   ],
@@ -316,7 +316,7 @@ Rules:
 ## Explicit Non-Goals For Alpha
 
 - exposing revision edges directly in the public API
-- exposing raw Arango documents or graph edge names
+- exposing raw SurrealDB records or relation table names
 - conversational/session-state interpretation inside the API runtime
 - first-class entity/relationship/event/reminder write APIs
 - full-replacement `PUT /notes/{note_id}` semantics

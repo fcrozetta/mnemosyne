@@ -1,0 +1,18 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:latest-dev
+    command:
+      - start
+      - --user
+      - ${SURREAL_ROOT_USERNAME:-root}
+      - --pass
+      - ${SURREAL_ROOT_PASSWORD:-root}
+      - surrealkv:///data/mnemosyne.db
+    ports:
+      - "${SURREAL_PORT:-8000}:8000"
+    volumes:
+      - surrealdb-data:/data
+      - ./db:/db
+
+volumes:
+  surrealdb-data:
