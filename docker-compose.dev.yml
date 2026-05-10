@@ -1,0 +1,44 @@
+services:
+  db-seed:
+    image: surrealdb/surrealdb:latest-dev
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-mnemosyne}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-mnemosyne}
+      SURREAL_ROOT_USERNAME: ${SURREAL_ROOT_USERNAME:-root}
+      SURREAL_ROOT_PASSWORD: ${SURREAL_ROOT_PASSWORD:-root}
+    volumes:
+      - ./db:/db:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        /surreal import \
+          --endpoint http://surrealdb:8000 \
+          --auth-level root \
+          --username "$$SURREAL_ROOT_USERNAME" \
+          --password "$$SURREAL_ROOT_PASSWORD" \
+          --namespace "$$SURREAL_NAMESPACE" \
+          --database "$$SURREAL_DATABASE" \
+          --log none \
+          /db/seed.surql
+        /surreal sql \
+          --endpoint http://surrealdb:8000 \
+          --auth-level root \
+          --username "$$SURREAL_ROOT_USERNAME" \
+          --password "$$SURREAL_ROOT_PASSWORD" \
+          --namespace "$$SURREAL_NAMESPACE" \
+          --database "$$SURREAL_DATABASE" \
+          --hide-welcome \
+          --multi \
+          --log none \
+          < /db/views.surql
+
+  api:
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      db-seed:
+        condition: service_completed_successfully

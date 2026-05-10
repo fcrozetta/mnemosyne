@@ -238,6 +238,35 @@ def test_patch_with_malformed_add_about_returns_invalid_note_patch() -> None:
     }
 
 
+def test_patch_with_empty_addendum_returns_invalid_note_patch() -> None:
+    client = _client()
+    client.post(
+        "/notes",
+        json={
+            "content": "Need to pick up my shirt.",
+            "observed_at": "2026-04-06T17:00:00Z",
+        },
+    )
+
+    response = client.patch(
+        "/notes/note_001",
+        json={"version": 1, "addendum": "  "},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_note_patch",
+        "details": [
+            {
+                "field": "addendum",
+                "message": "Addendum must be a non-empty string when provided.",
+                "code": "invalid_note_patch",
+            }
+        ],
+        "request_id": None,
+    }
+
+
 def test_patch_with_invalid_observed_at_returns_invalid_note_patch() -> None:
     client = _client()
     client.post(
@@ -260,6 +289,35 @@ def test_patch_with_invalid_observed_at_returns_invalid_note_patch() -> None:
             {
                 "field": "observed_at",
                 "message": "observed_at must be an ISO 8601 datetime string.",
+                "code": "invalid_note_patch",
+            }
+        ],
+        "request_id": None,
+    }
+
+
+def test_patch_with_naive_observed_at_returns_invalid_note_patch() -> None:
+    client = _client()
+    client.post(
+        "/notes",
+        json={
+            "content": "Need to pick up my shirt.",
+            "observed_at": "2026-04-06T17:00:00Z",
+        },
+    )
+
+    response = client.patch(
+        "/notes/note_001",
+        json={"version": 1, "observed_at": "2026-04-06T18:05:00"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_note_patch",
+        "details": [
+            {
+                "field": "observed_at",
+                "message": "observed_at must include a timezone offset.",
                 "code": "invalid_note_patch",
             }
         ],
@@ -401,6 +459,81 @@ def test_create_with_date_only_observed_at_returns_invalid_note_request() -> Non
         ],
         "request_id": None,
     }
+
+
+def test_create_with_naive_observed_at_returns_invalid_note_request() -> None:
+    client = _client()
+
+    response = client.post(
+        "/notes",
+        json={
+            "content": "Need to pick up my shirt.",
+            "observed_at": "2026-04-06T17:00:00",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_note_request",
+        "details": [
+            {
+                "field": "observed_at",
+                "message": "observed_at must include a timezone offset.",
+                "code": "invalid_note_request",
+            }
+        ],
+        "request_id": None,
+    }
+
+
+def test_openapi_exposes_note_request_and_response_schemas() -> None:
+    client = _client()
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schema = response.json()
+    components = schema["components"]["schemas"]
+    assert components["CreateNoteRequest"]["required"] == ["content"]
+    assert components["CreateNoteRequest"]["properties"]["about"]["items"] == {
+        "$ref": "#/components/schemas/AboutInput"
+    }
+    assert components["AboutInput"]["oneOf"] == [
+        {"$ref": "#/components/schemas/ResolvedAboutInput"},
+        {"$ref": "#/components/schemas/PendingAboutInput"},
+    ]
+    assert components["AboutKind"]["enum"] == [
+        "person",
+        "location",
+        "item",
+        "topic",
+        "other",
+    ]
+    assert "timezone" in components["CreateNoteRequest"]["properties"][
+        "observed_at"
+    ]["description"]
+
+    post_notes = schema["paths"]["/notes"]["post"]
+    assert post_notes["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/CreateNoteRequest"
+    }
+    assert post_notes["responses"]["201"]["content"]["application/json"][
+        "schema"
+    ] == {"$ref": "#/components/schemas/NoteView"}
+    assert post_notes["responses"]["400"]["content"]["application/json"][
+        "schema"
+    ] == {"$ref": "#/components/schemas/ErrorResponse"}
+
+    patch_note = schema["paths"]["/notes/{note_id}"]["patch"]
+    assert patch_note["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/PatchNoteRequest"
+    }
+    patch_schema = components["PatchNoteRequest"]
+    assert patch_schema["properties"]["addendum"]["minLength"] == 1
+    assert patch_schema["anyOf"][1]["properties"]["add_about"]["minItems"] == 1
+    assert patch_note["responses"]["409"]["content"]["application/json"][
+        "schema"
+    ] == {"$ref": "#/components/schemas/ErrorResponse"}
 
 
 def test_missing_note_returns_not_found_shape() -> None:

@@ -40,7 +40,7 @@ UPSERT note_revisions:note_014_v1 CONTENT {
 
 UPSERT about_refs:about_item_item_shirt_001 CONTENT {
     kind: "item",
-    identity: "item:item_shirt_001",
+    identity: "resolved:6974656d:6974656d5f73686972745f303031",
     collection: "item",
     key: "item_shirt_001",
     resolved: true
@@ -142,7 +142,8 @@ INSERT RELATION INTO note_about {
     id: "note_001_about_location_johns_place",
     in: note_roots:note_001,
     out: about_refs:about_location_johns_place,
-    edge_key: "note_001_about_location_johns_place"
+    edge_key: "note_001_about_location_johns_place",
+    label: "John's place"
 };
 
 DELETE note_about:note_014_about_item_shirt;
@@ -158,5 +159,6 @@ INSERT RELATION INTO note_about {
     id: "note_014_about_location_johns_place",
     in: note_roots:note_014,
     out: about_refs:about_location_johns_place,
-    edge_key: "note_014_about_location_johns_place"
+    edge_key: "note_014_about_location_johns_place",
+    label: "John's place"
 };

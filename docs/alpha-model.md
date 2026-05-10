@@ -10,7 +10,8 @@ For alpha, Mnemosyne is a note-first memory system for agents.
 
 - `Note` is the only required first-class persisted record.
 - `AboutRef` carries explicit references or unresolved labels attached to a note.
-- `Provenance` carries optional metadata about who wrote a note and where it came from.
+- Public create requests may provide `source_channel`; the API stores it as
+  provenance metadata but does not expose provenance fields in alpha responses.
 - Updates create new versions of the same logical note instead of inventing unrelated notes.
 
 ```mermaid
@@ -20,7 +21,7 @@ classDiagram
       +content: string
       +version: number
       +created_at: datetime
-      +updated_at: datetime
+      +observed_at: datetime
     }
 
     class AboutRef {
@@ -30,15 +31,17 @@ classDiagram
     }
 
     class Provenance {
-      +writer?: string
-      +session_id?: string
       +source_type?: string
-      +source_ref?: string
     }
 
     Note "1" --> "0..*" AboutRef : about
     Note "1" --> "0..1" Provenance : provenance
 ```
+
+Public alpha responses expose `created_at` and `observed_at`, not `updated_at`.
+`updated_at`, `Provenance.writer`, `Provenance.session_id`, and
+`Provenance.source_ref` exist only as internal or deferred storage fields for
+alpha. Clients cannot set or read them through the public API yet.
 
 ## Storage Graph Sketch
 

@@ -1,0 +1,12 @@
+.git
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+*.pyc
+htmlcov
+build
+dist
+*.egg-info
+db/exports/*
+!db/exports/.gitkeep

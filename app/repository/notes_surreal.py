@@ -97,7 +97,8 @@ class SurrealNotesRepository(NotesRepository):
                     )
                 )
             except SurrealRequestError as exc:
-                if _is_retryable_create_conflict(exc, note_id):
+                retryable_note_conflict = _is_retryable_create_conflict(exc, note_id)
+                if retryable_note_conflict or _is_retryable_about_ref_conflict(exc):
                     continue
                 raise
             return self._get_note(backend, note_id)
@@ -178,36 +179,45 @@ class SurrealNotesRepository(NotesRepository):
             else latest.content
         )
 
-        try:
-            backend.query(
-                self._patch_note_transaction_sql(
-                    note_id=note_id,
-                    expected_version=patch.version,
-                    next_version=next_version,
-                    content=content,
-                    observed_at=observed_at,
-                    revision_created_at=revision_created_at,
-                    resolved_about=resolved_about,
-                    pending_about=pending_about,
+        last_error: SurrealRequestError | None = None
+        for _attempt in range(3):
+            try:
+                backend.query(
+                    self._patch_note_transaction_sql(
+                        note_id=note_id,
+                        expected_version=patch.version,
+                        next_version=next_version,
+                        content=content,
+                        observed_at=observed_at,
+                        revision_created_at=revision_created_at,
+                        resolved_about=resolved_about,
+                        pending_about=pending_about,
+                    )
                 )
-            )
-        except SurrealRequestError as exc:
-            current_version = _parse_version_conflict(exc, note_id)
-            if current_version is not None:
-                raise VersionConflictError(
-                    note_id=note_id,
-                    current_version=current_version,
-                    requested_version=patch.version,
-                ) from exc
-            if _is_retryable_patch_conflict(exc, note_id, next_version):
-                raise VersionConflictError(
-                    note_id=note_id,
-                    current_version=self._load_current_version(backend, note_id),
-                    requested_version=patch.version,
-                ) from exc
-            if _is_note_not_found(exc, note_id):
-                raise NoteNotFoundError(note_id) from exc
-            raise
+            except SurrealRequestError as exc:
+                current_version = _parse_version_conflict(exc, note_id)
+                if current_version is not None:
+                    raise VersionConflictError(
+                        note_id=note_id,
+                        current_version=current_version,
+                        requested_version=patch.version,
+                    ) from exc
+                if _is_retryable_patch_conflict(exc, note_id, next_version):
+                    raise VersionConflictError(
+                        note_id=note_id,
+                        current_version=self._load_current_version(backend, note_id),
+                        requested_version=patch.version,
+                    ) from exc
+                if _is_note_not_found(exc, note_id):
+                    raise NoteNotFoundError(note_id) from exc
+                if _is_retryable_about_ref_conflict(exc):
+                    last_error = exc
+                    continue
+                raise
+            break
+        else:
+            assert last_error is not None
+            raise last_error
 
         return self._get_note(backend, note_id)
 
@@ -314,7 +324,7 @@ class SurrealNotesRepository(NotesRepository):
     ) -> tuple[tuple[ResolvedAboutRef, ...], tuple[PendingAboutRef, ...]]:
         root_record = _record_id("note_roots", note_id)
         rows = backend.query(
-            "SELECT out FROM note_about "
+            "SELECT * FROM note_about "
             f"WHERE in = {root_record} FETCH out;"
         )
         resolved: list[ResolvedAboutRef] = []
@@ -341,10 +351,13 @@ class SurrealNotesRepository(NotesRepository):
                     )
                 )
             else:
+                label = row.get("label")
+                if not isinstance(label, str):
+                    label = _string_field(payload, "label")
                 pending.append(
                     PendingAboutRef(
                         kind=AboutKind(kind),
-                        label=_string_field(payload, "label"),
+                        label=label,
                     )
                 )
 
@@ -359,7 +372,7 @@ class SurrealNotesRepository(NotesRepository):
         revision_record = _record_id("note_revisions", f"{note_id}_v{version}")
         rows = backend.query(
             "SELECT out FROM revision_has_provenance "
-            f"WHERE in = {revision_record} FETCH out LIMIT 1;"
+            f"WHERE in = {revision_record} LIMIT 1 FETCH out;"
         )
         if not isinstance(rows, list) or not rows:
             return None
@@ -579,16 +592,19 @@ class SurrealNotesRepository(NotesRepository):
             about_key = _resolved_about_key(about_ref)
             about_content = {
                 "kind": about_ref.kind,
-                "identity": f"{about_ref.collection}:{about_ref.key}",
+                "identity": _resolved_about_identity(about_ref),
                 "collection": about_ref.collection,
                 "key": about_ref.key,
                 "label": None,
                 "resolved": True,
             }
             about_record_var = f"$about_record_{about_index}"
-            statements.append(
-                f"LET {about_record_var} = "
-                f"{_about_ref_upsert_sql(about_content)};"
+            statements.extend(
+                _about_ref_upsert_sql(
+                    about_record_var,
+                    about_content,
+                    match_collection_key=True,
+                )
             )
             statements.append(
                 _relation_upsert_sql(
@@ -596,6 +612,7 @@ class SurrealNotesRepository(NotesRepository):
                     key=f"{note_id}_about_{about_key}",
                     in_record=root_record,
                     out_record=about_record_var,
+                    match_existing_relation=True,
                 )
             )
             about_index += 1
@@ -611,9 +628,12 @@ class SurrealNotesRepository(NotesRepository):
                 "resolved": False,
             }
             about_record_var = f"$about_record_{about_index}"
-            statements.append(
-                f"LET {about_record_var} = "
-                f"{_about_ref_upsert_sql(about_content)};"
+            statements.extend(
+                _about_ref_upsert_sql(
+                    about_record_var,
+                    about_content,
+                    preserve_existing_label=True,
+                )
             )
             statements.append(
                 _relation_upsert_sql(
@@ -621,6 +641,8 @@ class SurrealNotesRepository(NotesRepository):
                     key=f"{note_id}_about_{about_key}",
                     in_record=root_record,
                     out_record=about_record_var,
+                    extra_content={"label": about_ref.label},
+                    match_existing_relation=True,
                 )
             )
             about_index += 1
@@ -649,12 +671,14 @@ class SurrealNotesRepository(NotesRepository):
 
         provenance_key = f"provenance_{note_id}_v{version}"
         provenance_record = _record_id("provenance_records", provenance_key)
-        provenance_content = {
-            "writer": provenance.writer,
-            "session_id": provenance.session_id,
-            "source_type": provenance.source_type,
-            "source_ref": provenance.source_ref,
-        }
+        provenance_content = _compact_record_data(
+            {
+                "writer": provenance.writer,
+                "session_id": provenance.session_id,
+                "source_type": provenance.source_type,
+                "source_ref": provenance.source_ref,
+            }
+        )
         return [
             f"UPSERT {provenance_record} CONTENT "
             f"{_to_surql(provenance_content)} "
@@ -726,6 +750,14 @@ def _pending_about_key(about_ref: PendingAboutRef) -> str:
     return f"about_{about_ref.kind}_{_encode_key_component(normalized)}"
 
 
+def _resolved_about_identity(about_ref: ResolvedAboutRef) -> str:
+    return (
+        "resolved:"
+        f"{_encode_key_component(about_ref.collection)}:"
+        f"{_encode_key_component(about_ref.key)}"
+    )
+
+
 def _encode_key_component(value: str) -> str:
     return binascii.hexlify(value.encode("utf-8")).decode("ascii")
 
@@ -741,37 +773,107 @@ def _relation_upsert_sql(
     key: str,
     in_record: str,
     out_record: str,
+    extra_content: dict[str, Any] | None = None,
+    match_existing_relation: bool = False,
 ) -> str:
     relation_record = _record_id(table, key)
-    edge_key = {"edge_key": key}
-    return (
+    update_content = {"edge_key": key}
+    if extra_content is not None:
+        update_content.update(extra_content)
+    existing_relation_lookup = ""
+    target_record = relation_record
+    if match_existing_relation:
+        existing_relation_lookup = (
+            "LET $existing_relation = array::first("
+            f"SELECT VALUE id FROM {table} "
+            f"WHERE in = {in_record} AND out = {out_record} LIMIT 1"
+            ");\n"
+        )
+        target_record = "$existing_relation"
+    return existing_relation_lookup + (
         f"IF record::exists({relation_record}) {{ "
-        f"UPDATE ONLY {relation_record} MERGE {_to_surql(edge_key)} RETURN NONE; "
+        f"UPDATE ONLY {relation_record} MERGE {_to_surql(update_content)} "
+        "RETURN NONE; "
+        "} ELSE IF "
+        f"{'$existing_relation' if match_existing_relation else 'false'}"
+        " {\n"
+        f"UPDATE ONLY {target_record} MERGE {_to_surql(update_content)} RETURN NONE; "
         "} ELSE { "
-        f"RELATE {in_record}->{relation_record}->{out_record} "
-        f"CONTENT {_to_surql(edge_key)} RETURN NONE; "
+        f"INSERT RELATION INTO {table} "
+        f"{_relation_insert_content_sql(key, in_record, out_record, extra_content)} "
+        "RETURN NONE; "
         "};"
     )
 
 
-def _about_ref_upsert_sql(data: dict[str, Any]) -> str:
+def _about_ref_upsert_sql(
+    record_var: str,
+    data: dict[str, Any],
+    *,
+    preserve_existing_label: bool = False,
+    match_collection_key: bool = False,
+) -> list[str]:
     kind = _to_surql(data["kind"])
     identity = _to_surql(data["identity"])
     record_id = _record_id(
         "about_refs",
         _about_ref_record_key(data),
     )
-    return (
-        "(\n"
-        f"LET $existing = (SELECT VALUE id FROM about_refs WHERE kind = {kind} "
-        f"AND identity = {identity} LIMIT 1);\n"
-        "IF $existing {\n"
-        f"    UPDATE ONLY $existing CONTENT {_to_surql(data)} RETURN VALUE id;\n"
-        "} ELSE {\n"
-        f"    CREATE ONLY {record_id} CONTENT {_to_surql(data)} RETURN VALUE id;\n"
-        "}\n"
-        ")"
-    )
+    create_data = _compact_record_data(data)
+    update_data = create_data
+    if preserve_existing_label:
+        update_data = {
+            key: value for key, value in create_data.items() if key != "label"
+        }
+    identity_match = f"identity = {identity}"
+    if match_collection_key:
+        collection = _to_surql(data["collection"])
+        key = _to_surql(data["key"])
+        identity_match = (
+            f"({identity_match} OR (collection = {collection} AND key = {key}))"
+        )
+    existing_var = f"{record_var}_existing"
+    return [
+        (
+            f"LET {existing_var} = array::first(SELECT VALUE id FROM about_refs "
+            f"WHERE kind = {kind} AND {identity_match} LIMIT 1);"
+        ),
+        (
+            f"IF {existing_var} {{ "
+            f"UPDATE ONLY {existing_var} "
+            f"MERGE {_to_surql(update_data)} RETURN NONE; "
+            "} ELSE { "
+            f"CREATE ONLY {record_id} "
+            f"CONTENT {_to_surql(create_data)} RETURN NONE; "
+            "};"
+        ),
+        (
+            f"LET {record_var} = IF {existing_var} "
+            f"{{ {existing_var} }} ELSE {{ {record_id} }};"
+        ),
+    ]
+
+
+def _compact_record_data(data: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in data.items() if value is not None}
+
+
+def _relation_insert_content_sql(
+    key: str,
+    in_record: str,
+    out_record: str,
+    extra_content: dict[str, Any] | None,
+) -> str:
+    fields = [
+        f"id: {_to_surql(key)}",
+        f"in: {in_record}",
+        f"out: {out_record}",
+        f"edge_key: {_to_surql(key)}",
+    ]
+    if extra_content is not None:
+        for name, value in extra_content.items():
+            fields.append(f"{name}: {_to_surql(value)}")
+    return "{ " + ", ".join(fields) + " }"
 
 
 def _about_ref_record_key(data: dict[str, Any]) -> str:
@@ -830,6 +932,16 @@ def _is_retryable_patch_conflict(
         in message
         or "note_current_revision_in_unique" in message
     )
+
+
+def _is_retryable_about_ref_conflict(exc: SurrealRequestError) -> bool:
+    message = str(exc).lower()
+    if not any(
+        marker in message
+        for marker in ("already", "exists", "contains", "duplicate")
+    ):
+        return False
+    return "about_refs:" in message or "about_refs_kind_identity" in message
 
 
 def _parse_version_conflict(

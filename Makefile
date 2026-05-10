@@ -2,7 +2,8 @@ ifneq (,$(wildcard .env))
 include .env
 endif
 
-SURREAL_PORT ?= 8000
+API_PORT ?= 8000
+SURREAL_PORT ?= 8001
 SURREAL_URL ?= http://127.0.0.1:$(SURREAL_PORT)
 SURREAL_NAMESPACE ?= mnemosyne
 SURREAL_DATABASE ?= mnemosyne
@@ -17,18 +18,29 @@ SURREAL_SCHEMA_FILE ?= /db/schema.surql
 SURREAL_SEED_FILE ?= /db/seed.surql
 SURREAL_VIEWS_FILE ?= db/views.surql
 SURREAL_EXPORT_FILE ?= /db/exports/mnemosyne.surql
+COMPOSE ?= docker compose
+COMPOSE_DEV ?= docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: clean db-clean db-up db-ready db-bootstrap seed db-export test lint
+.PHONY: clean db-clean db-up db-ready db-bootstrap seed db-export up dev down test lint
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .coverage htmlcov build dist *.egg-info
 	find app tests -type d -name __pycache__ -prune -exec rm -rf {} +
 
 db-clean:
-	docker compose down -v --remove-orphans
+	$(COMPOSE_DEV) down -v --remove-orphans
+
+up:
+	API_PORT=$(API_PORT) SURREAL_PORT=$(SURREAL_PORT) $(COMPOSE) up -d --build
+
+dev:
+	API_PORT=$(API_PORT) SURREAL_PORT=$(SURREAL_PORT) $(COMPOSE_DEV) up -d --build
+
+down:
+	$(COMPOSE_DEV) down --remove-orphans
 
 db-up:
-	SURREAL_PORT=$(SURREAL_PORT) SURREAL_ROOT_USERNAME=$(SURREAL_ROOT_USERNAME) SURREAL_ROOT_PASSWORD=$(SURREAL_ROOT_PASSWORD) docker compose up -d surrealdb
+	SURREAL_PORT=$(SURREAL_PORT) SURREAL_ROOT_USERNAME=$(SURREAL_ROOT_USERNAME) SURREAL_ROOT_PASSWORD=$(SURREAL_ROOT_PASSWORD) $(COMPOSE) up -d surrealdb
 
 db-ready: db-up
 	until $(SURREAL_CLI) is-ready --endpoint $(SURREAL_INTERNAL_URL) --log none; do sleep 1; done

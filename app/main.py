@@ -5,6 +5,7 @@ from typing import Annotated, Any
 
 from fastapi import Body, Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from app.dependencies import get_notes_service
@@ -205,7 +206,336 @@ def create_app() -> FastAPI:
     ) -> dict[str, Any]:
         return _serialize_note_context(service.get_note_context(note_id))
 
+    _install_openapi_schema(app)
     return app
+
+
+_OPENAPI_SCHEMA_REF_PREFIX = "#/components/schemas/"
+
+
+_OPENAPI_COMPONENT_SCHEMAS: dict[str, dict[str, Any]] = {
+    "AboutKind": {
+        "type": "string",
+        "enum": ["person", "location", "item", "topic", "other"],
+    },
+    "ResolvedAboutInput": {
+        "type": "object",
+        "required": ["kind", "ref"],
+        "additionalProperties": False,
+        "properties": {
+            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
+            "ref": {
+                "type": "object",
+                "required": ["collection", "key"],
+                "additionalProperties": False,
+                "properties": {
+                    "collection": {"type": "string", "minLength": 1},
+                    "key": {"type": "string", "minLength": 1},
+                },
+            },
+        },
+    },
+    "PendingAboutInput": {
+        "type": "object",
+        "required": ["kind", "label"],
+        "additionalProperties": False,
+        "properties": {
+            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
+            "label": {"type": "string", "minLength": 1},
+        },
+    },
+    "AboutInput": {
+        "oneOf": [
+            {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ResolvedAboutInput"},
+            {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}PendingAboutInput"},
+        ],
+    },
+    "CreateNoteRequest": {
+        "type": "object",
+        "required": ["content"],
+        "additionalProperties": False,
+        "properties": {
+            "content": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The full note text to store.",
+            },
+            "about": {
+                "type": "array",
+                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutInput"},
+                "default": [],
+            },
+            "observed_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": (
+                    "When the fact was observed. Must include time and timezone."
+                ),
+            },
+            "source_channel": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional provenance channel, e.g. chat or email.",
+            },
+        },
+    },
+    "PatchNoteRequest": {
+        "type": "object",
+        "required": ["version"],
+        "additionalProperties": False,
+        "properties": {
+            "version": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Latest note version observed by the client.",
+            },
+            "addendum": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Text appended to the existing note content.",
+            },
+            "add_about": {
+                "type": "array",
+                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutInput"},
+                "default": [],
+            },
+            "observed_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": (
+                    "Replacement observed timestamp for the new version. "
+                    "Must include timezone."
+                ),
+            },
+        },
+        "anyOf": [
+            {
+                "required": ["addendum"],
+                "properties": {"addendum": {"type": "string", "minLength": 1}},
+            },
+            {
+                "required": ["add_about"],
+                "properties": {
+                    "add_about": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutInput"},
+                    }
+                },
+            },
+            {"required": ["observed_at"]},
+        ],
+    },
+    "ResolvedAboutView": {
+        "type": "object",
+        "required": ["kind", "collection", "key"],
+        "additionalProperties": False,
+        "properties": {
+            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
+            "collection": {"type": "string"},
+            "key": {"type": "string"},
+        },
+    },
+    "PendingAboutView": {
+        "type": "object",
+        "required": ["kind", "label"],
+        "additionalProperties": False,
+        "properties": {
+            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
+            "label": {"type": "string"},
+        },
+    },
+    "NoteView": {
+        "type": "object",
+        "required": [
+            "note_id",
+            "version",
+            "content",
+            "observed_at",
+            "created_at",
+            "resolved_about",
+            "pending_about",
+        ],
+        "additionalProperties": False,
+        "properties": {
+            "note_id": {"type": "string", "pattern": "^note_[0-9]+$"},
+            "version": {"type": "integer", "minimum": 1},
+            "content": {"type": "string"},
+            "observed_at": {"type": "string", "format": "date-time"},
+            "created_at": {"type": "string", "format": "date-time"},
+            "resolved_about": {
+                "type": "array",
+                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ResolvedAboutView"},
+            },
+            "pending_about": {
+                "type": "array",
+                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}PendingAboutView"},
+            },
+        },
+    },
+    "NoteSearchResultView": {
+        "type": "object",
+        "required": ["note_id", "version", "content_preview", "observed_at", "score"],
+        "additionalProperties": False,
+        "properties": {
+            "note_id": {"type": "string", "pattern": "^note_[0-9]+$"},
+            "version": {"type": "integer", "minimum": 1},
+            "content_preview": {"type": "string"},
+            "observed_at": {"type": "string", "format": "date-time"},
+            "score": {"type": "number"},
+        },
+    },
+    "NoteContextView": {
+        "type": "object",
+        "required": ["note", "basis", "related_notes"],
+        "additionalProperties": False,
+        "properties": {
+            "note": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}NoteView"},
+            "basis": {
+                "type": "object",
+                "required": ["resolved_about", "pending_about"],
+                "additionalProperties": False,
+                "properties": {
+                    "resolved_about": {
+                        "type": "array",
+                        "items": {
+                            "$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ResolvedAboutView"
+                        },
+                    },
+                    "pending_about": {
+                        "type": "array",
+                        "items": {
+                            "$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}PendingAboutView"
+                        },
+                    },
+                },
+            },
+            "related_notes": {
+                "type": "array",
+                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}NoteSearchResultView"},
+            },
+        },
+    },
+    "ErrorDetail": {
+        "type": "object",
+        "required": ["message", "code"],
+        "additionalProperties": False,
+        "properties": {
+            "field": {"type": "string"},
+            "message": {"type": "string"},
+            "code": {"type": "string"},
+            "context": {"type": "object"},
+        },
+    },
+    "ErrorResponse": {
+        "type": "object",
+        "required": ["error", "details", "request_id"],
+        "additionalProperties": False,
+        "properties": {
+            "error": {
+                "type": "string",
+                "enum": [
+                    "invalid_note_request",
+                    "invalid_note_patch",
+                    "note_not_found",
+                    "version_conflict",
+                ],
+            },
+            "details": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ErrorDetail"},
+            },
+            "request_id": {"type": ["string", "null"], "default": None},
+        },
+    },
+}
+
+
+def _install_openapi_schema(app: FastAPI) -> None:
+    def custom_openapi() -> dict[str, Any]:
+        if app.openapi_schema:
+            return app.openapi_schema
+
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            routes=app.routes,
+        )
+        component_schemas = schema.setdefault("components", {}).setdefault(
+            "schemas",
+            {},
+        )
+        component_schemas.update(_OPENAPI_COMPONENT_SCHEMAS)
+        _patch_note_endpoint_openapi(schema)
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi
+
+
+def _patch_note_endpoint_openapi(schema: dict[str, Any]) -> None:
+    paths = schema.setdefault("paths", {})
+    note_collection = paths.setdefault("/notes", {})
+    note_member = paths.setdefault("/notes/{note_id}", {})
+    note_context = paths.setdefault("/notes/{note_id}/context", {})
+
+    _set_request_body(note_collection.setdefault("post", {}), "CreateNoteRequest")
+    _set_response(note_collection["post"], "201", "Created", "NoteView")
+    _set_response(note_collection["post"], "400", "Bad Request", "ErrorResponse")
+
+    _set_response(note_collection.setdefault("get", {}), "200", "OK", None)
+    note_collection["get"]["responses"]["200"]["content"] = {
+        "application/json": {
+            "schema": {
+                "type": "array",
+                "items": {
+                    "$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}NoteSearchResultView"
+                },
+            }
+        }
+    }
+    _set_response(note_collection["get"], "400", "Bad Request", "ErrorResponse")
+
+    _set_response(note_member.setdefault("get", {}), "200", "OK", "NoteView")
+    _set_response(note_member["get"], "404", "Not Found", "ErrorResponse")
+
+    _set_request_body(note_member.setdefault("patch", {}), "PatchNoteRequest")
+    _set_response(note_member["patch"], "200", "OK", "NoteView")
+    _set_response(note_member["patch"], "400", "Bad Request", "ErrorResponse")
+    _set_response(note_member["patch"], "404", "Not Found", "ErrorResponse")
+    _set_response(note_member["patch"], "409", "Conflict", "ErrorResponse")
+
+    _set_response(note_context.setdefault("get", {}), "200", "OK", "NoteContextView")
+    _set_response(note_context["get"], "404", "Not Found", "ErrorResponse")
+
+
+def _set_request_body(operation: dict[str, Any], schema_name: str) -> None:
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}{schema_name}"}
+            }
+        },
+    }
+
+
+def _set_response(
+    operation: dict[str, Any],
+    status_code: str,
+    description: str,
+    schema_name: str | None,
+) -> None:
+    responses = operation.setdefault("responses", {})
+    response: dict[str, Any] = {"description": description}
+    if schema_name is not None:
+        response["content"] = {
+            "application/json": {
+                "schema": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}{schema_name}"}
+            }
+        }
+    responses[status_code] = response
 
 
 def _parse_create_note_input(body: Any) -> CreateNoteInput:
@@ -252,6 +582,12 @@ def _parse_patch_note_input(body: Any) -> PatchNoteInput:
             error="invalid_note_patch",
             field="addendum",
             message="Addendum must be a string when provided.",
+        )
+    if isinstance(addendum, str) and not addendum.strip():
+        raise InvalidNoteRequestError(
+            error="invalid_note_patch",
+            field="addendum",
+            message="Addendum must be a non-empty string when provided.",
         )
 
     return PatchNoteInput(
@@ -401,7 +737,11 @@ def _parse_datetime(
             message=f"{field} must be an ISO 8601 datetime string.",
         ) from exc
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
+        raise InvalidNoteRequestError(
+            error=error,
+            field=field,
+            message=f"{field} must include a timezone offset.",
+        )
     return parsed
 
 

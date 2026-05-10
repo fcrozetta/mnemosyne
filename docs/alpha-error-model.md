@@ -57,17 +57,22 @@ Detail fields:
 flowchart TD
     A[Client request] --> B{Valid request?}
     B -- no --> C[400 ErrorResponse]
-    B -- yes --> D{Latest version matches?}
-    D -- no --> E[409 ErrorResponse]
+    B -- yes --> D{Endpoint targets a note?}
+    D -- no --> E[2xx success response]
     D -- yes --> F{Target note exists?}
     F -- no --> G[404 ErrorResponse]
-    F -- yes --> H[2xx success response]
+    F -- yes --> H{Endpoint uses version?}
+    H -- no --> E
+    H -- yes --> I{Latest version matches?}
+    I -- no --> J[409 ErrorResponse]
+    I -- yes --> E
 ```
 
 ## Current Alpha Errors
 
 Alpha only needs the errors already implied by the current write/read surface:
 
+- `invalid_note_request`
 - `invalid_note_patch`
 - `note_not_found`
 - `version_conflict`
@@ -96,6 +101,8 @@ Those are different things and should stay different.
 For `0.1.0-alpha`, the required guarantees are:
 
 - `400`, `404`, and `409` use the shared `ErrorResponse` shape
+- malformed create/search requests use `invalid_note_request`
+- malformed patch requests use `invalid_note_patch`
 - note writes and reads use stable public error names
 - public docs refer to public API terms, not DB internals
 

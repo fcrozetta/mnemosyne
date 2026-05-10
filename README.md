@@ -24,16 +24,20 @@ checked-in import files define schemafull tables, graph relation tables, and a
 small sample note graph:
 
 ```shell
-make db-up
-make seed
+make up
+make dev
 ```
 
-`make seed` connects as root for bootstrap/import operations: it defines
-namespace `mnemosyne`, database `mnemosyne`, database-scoped user `mnemosyne`,
-then imports `db/schema.surql` and `db/seed.surql`. The `notes` materialized
-view is defined from `db/views.surql` after import so `OPTION IMPORT` does not
-suppress view population. Override local credentials with `SURREAL_ROOT_PASSWORD`
-for root or `SURREAL_PASSWORD` for the database user.
+`make up` starts the API on port `8000`, starts SurrealDB on port `8001`, and
+prepares the database if needed by defining namespace `mnemosyne`, database
+`mnemosyne`, database-scoped user `mnemosyne`, schema, indexes, and views.
+
+`make dev` uses `docker-compose.dev.yml` on top of the base compose file and
+also imports `db/seed.surql`. Use it when you want the sample note graph.
+The `notes` materialized view is defined from `db/views.surql` after imports so
+`OPTION IMPORT` does not suppress view population. Override local credentials
+with `SURREAL_ROOT_PASSWORD` for root or `SURREAL_PASSWORD` for the database
+user.
 Agents should authenticate as `mnemosyne` with a database-scoped signin against
 namespace `mnemosyne` and database `mnemosyne`, not root.
 
@@ -49,7 +53,7 @@ The local reset command is destructive:
 
 ```shell
 make db-clean
-make seed
+make dev
 ```
 
 The app entrypoint is `app.main:app`. `/healthz` is now fail-closed: it returns
@@ -58,5 +62,5 @@ means the server is reachable, the `mnemosyne` database user can sign in, and
 the expected schema/view/index layout is present.
 
 ```shell
-uv run fastapi dev app/main.py
+uv run fastapi dev app/main.py --port 8000
 ```
