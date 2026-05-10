@@ -39,6 +39,7 @@ DEFINE FIELD IF NOT EXISTS edge_key ON TABLE note_current_revision TYPE string;
 DEFINE FIELD IF NOT EXISTS edge_key ON TABLE revision_previous TYPE string;
 DEFINE FIELD IF NOT EXISTS edge_key ON TABLE revision_has_provenance TYPE string;
 DEFINE FIELD IF NOT EXISTS edge_key ON TABLE note_about TYPE string;
+DEFINE FIELD IF NOT EXISTS label ON TABLE note_about TYPE option<string>;
 
 DEFINE INDEX IF NOT EXISTS note_roots_note_id_unique ON TABLE note_roots FIELDS note_id UNIQUE;
 DEFINE INDEX IF NOT EXISTS note_revisions_note_id_version_unique ON TABLE note_revisions FIELDS note_id, version UNIQUE;

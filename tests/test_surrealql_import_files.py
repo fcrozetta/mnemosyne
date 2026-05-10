@@ -17,6 +17,18 @@ def _views() -> str:
     return (PROJECT_ROOT / "db/views.surql").read_text()
 
 
+def _compose() -> str:
+    return (PROJECT_ROOT / "docker-compose.yml").read_text()
+
+
+def _compose_dev() -> str:
+    return (PROJECT_ROOT / "docker-compose.dev.yml").read_text()
+
+
+def _dockerfile() -> str:
+    return (PROJECT_ROOT / "Dockerfile").read_text()
+
+
 def _makefile() -> str:
     return (PROJECT_ROOT / "Makefile").read_text()
 
@@ -105,3 +117,38 @@ def test_make_bootstrap_keeps_root_and_database_credentials_separate() -> None:
     assert "SURREAL_ROOT_USERNAME ?= root" in makefile
     assert "SURREAL_USERNAME ?= mnemosyne" in makefile
     assert "DEFINE USER OVERWRITE $(SURREAL_USERNAME) ON DATABASE" in makefile
+
+
+def test_compose_base_starts_api_and_bootstraps_unseeded_database() -> None:
+    compose = _compose()
+    dockerfile = _dockerfile()
+
+    assert 'EXPOSE 8000' in dockerfile
+    assert '"${API_PORT:-8000}:8000"' in compose
+    assert '"${SURREAL_PORT:-8001}:8000"' in compose
+    assert "db-bootstrap:" in compose
+    assert "/db/schema.surql" in compose
+    assert "/db/views.surql" in compose
+    assert "/db/seed.surql" not in compose
+    assert "SURREAL_URL: http://surrealdb:8000" in compose
+
+
+def test_compose_dev_adds_seed_import_and_api_waits_for_seed() -> None:
+    compose_dev = _compose_dev()
+
+    assert "db-seed:" in compose_dev
+    assert "/db/seed.surql" in compose_dev
+    assert "db-seed:" in compose_dev
+    assert "condition: service_completed_successfully" in compose_dev
+
+
+def test_makefile_defaults_to_api_8000_and_surreal_8001() -> None:
+    makefile = _makefile()
+
+    assert "API_PORT ?= 8000" in makefile
+    assert "SURREAL_PORT ?= 8001" in makefile
+    assert "SURREAL_URL ?= http://127.0.0.1:$(SURREAL_PORT)" in makefile
+    assert (
+        "COMPOSE_DEV ?= docker compose -f docker-compose.yml "
+        "-f docker-compose.dev.yml"
+    ) in makefile

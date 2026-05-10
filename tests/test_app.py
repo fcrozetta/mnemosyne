@@ -62,10 +62,12 @@ def test_build_notes_repository_defaults_to_surreal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("MNEMOSYNE_STORAGE_BACKEND", raising=False)
+    monkeypatch.delenv("SURREAL_URL", raising=False)
 
     repository = build_notes_repository()
 
     assert isinstance(repository, SurrealNotesRepository)
+    assert repository.runtime.base_url == "http://127.0.0.1:8001"
 
 
 def test_build_notes_repository_supports_in_memory(

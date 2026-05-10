@@ -9,10 +9,103 @@ services:
       - ${SURREAL_ROOT_PASSWORD:-root}
       - surrealkv:///data/mnemosyne.db
     ports:
-      - "${SURREAL_PORT:-8000}:8000"
+      - "${SURREAL_PORT:-8001}:8000"
     volumes:
       - surrealdb-data:/data
-      - ./db:/db
+      - ./db:/db:ro
+    healthcheck:
+      test:
+        - CMD
+        - /surreal
+        - is-ready
+        - --endpoint
+        - http://127.0.0.1:8000
+        - --log
+        - none
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  db-bootstrap:
+    image: surrealdb/surrealdb:latest-dev
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    environment:
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-mnemosyne}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-mnemosyne}
+      SURREAL_ROOT_USERNAME: ${SURREAL_ROOT_USERNAME:-root}
+      SURREAL_ROOT_PASSWORD: ${SURREAL_ROOT_PASSWORD:-root}
+      SURREAL_USERNAME: ${SURREAL_USERNAME:-mnemosyne}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:-mnemosyne}
+      SURREAL_DATABASE_ROLE: ${SURREAL_DATABASE_ROLE:-EDITOR}
+    volumes:
+      - ./db:/db:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        printf 'DEFINE NAMESPACE IF NOT EXISTS %s;
+        USE NS %s;
+        DEFINE DATABASE IF NOT EXISTS %s;
+        USE DB %s;
+        DEFINE USER OVERWRITE %s ON DATABASE PASSWORD "%s" ROLES %s;
+        ' "$$SURREAL_NAMESPACE" "$$SURREAL_NAMESPACE" "$$SURREAL_DATABASE" "$$SURREAL_DATABASE" "$$SURREAL_USERNAME" "$$SURREAL_PASSWORD" "$$SURREAL_DATABASE_ROLE" |
+          /surreal sql \
+            --endpoint http://surrealdb:8000 \
+            --auth-level root \
+            --username "$$SURREAL_ROOT_USERNAME" \
+            --password "$$SURREAL_ROOT_PASSWORD" \
+            --namespace "$$SURREAL_NAMESPACE" \
+            --database "$$SURREAL_DATABASE" \
+            --hide-welcome \
+            --log none
+        /surreal import \
+          --endpoint http://surrealdb:8000 \
+          --auth-level root \
+          --username "$$SURREAL_ROOT_USERNAME" \
+          --password "$$SURREAL_ROOT_PASSWORD" \
+          --namespace "$$SURREAL_NAMESPACE" \
+          --database "$$SURREAL_DATABASE" \
+          --log none \
+          /db/schema.surql
+        /surreal sql \
+          --endpoint http://surrealdb:8000 \
+          --auth-level root \
+          --username "$$SURREAL_ROOT_USERNAME" \
+          --password "$$SURREAL_ROOT_PASSWORD" \
+          --namespace "$$SURREAL_NAMESPACE" \
+          --database "$$SURREAL_DATABASE" \
+          --hide-welcome \
+          --multi \
+          --log none \
+          < /db/views.surql
+
+  api:
+    build: .
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      MNEMOSYNE_STORAGE_BACKEND: surreal
+      SURREAL_URL: http://surrealdb:8000
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-mnemosyne}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-mnemosyne}
+      SURREAL_USERNAME: ${SURREAL_USERNAME:-mnemosyne}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:-mnemosyne}
+      SURREAL_ROOT_USERNAME: ${SURREAL_ROOT_USERNAME:-root}
+      SURREAL_ROOT_PASSWORD: ${SURREAL_ROOT_PASSWORD:-root}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()"
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
   surrealdb-data:

@@ -125,6 +125,7 @@ ALPHA_STORAGE_LAYOUT = StorageLayout(
         FieldSpec("revision_previous", "edge_key", "string"),
         FieldSpec("revision_has_provenance", "edge_key", "string"),
         FieldSpec("note_about", "edge_key", "string"),
+        FieldSpec("note_about", "label", "option<string>"),
     ),
     views=(
         ViewSpec(

@@ -5,6 +5,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -434,6 +435,8 @@ def _record_id(table: str, key: str) -> str:
 
 
 def _to_surql(value: Any) -> str:
+    if isinstance(value, datetime):
+        return f"d'{value.astimezone(UTC).isoformat().replace('+00:00', 'Z')}'"
     if isinstance(value, dict):
         fields = (
             f"{json.dumps(key, separators=(',', ':'))}:{_to_surql(item)}"
@@ -505,4 +508,7 @@ def _decode_payload(raw: bytes) -> Any:
         return text
 
 
-__all__ = ["SurrealRequestError", "SurrealStorageBackend"]
+__all__ = [
+    "SurrealRequestError",
+    "SurrealStorageBackend",
+]
