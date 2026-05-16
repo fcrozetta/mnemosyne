@@ -20,7 +20,7 @@ def build_notes_repository() -> NotesRepository:
         msg = f"Unsupported storage backend: {backend!r}."
         raise ValueError(msg)
 
-    base_url = os.getenv("SURREAL_URL", "http://127.0.0.1:8001")
+    base_url = os.getenv("SURREAL_URL", "http://127.0.0.1:8100")
     namespace = os.getenv("SURREAL_NAMESPACE", "mnemosyne")
     database = os.getenv("SURREAL_DATABASE", "mnemosyne")
     timeout_seconds = float(os.getenv("SURREAL_TIMEOUT_SECONDS", "5"))

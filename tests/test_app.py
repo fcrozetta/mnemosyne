@@ -67,7 +67,7 @@ def test_build_notes_repository_defaults_to_surreal(
     repository = build_notes_repository()
 
     assert isinstance(repository, SurrealNotesRepository)
-    assert repository.runtime.base_url == "http://127.0.0.1:8001"
+    assert repository.runtime.base_url == "http://127.0.0.1:8100"
 
 
 def test_build_notes_repository_supports_in_memory(

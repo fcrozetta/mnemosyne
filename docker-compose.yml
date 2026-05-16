@@ -9,7 +9,7 @@ services:
       - ${SURREAL_ROOT_PASSWORD:-root}
       - surrealkv:///data/mnemosyne.db
     ports:
-      - "${SURREAL_PORT:-8001}:8000"
+      - "${SURREAL_PORT:-8100}:8000"
     volumes:
       - surrealdb-data:/data
       - ./db:/db:ro
@@ -96,7 +96,7 @@ services:
       SURREAL_ROOT_USERNAME: ${SURREAL_ROOT_USERNAME:-root}
       SURREAL_ROOT_PASSWORD: ${SURREAL_ROOT_PASSWORD:-root}
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-8180}:8000"
     healthcheck:
       test:
         - CMD
