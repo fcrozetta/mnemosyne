@@ -28,7 +28,7 @@ make up
 make dev
 ```
 
-`make up` starts the API on port `8000`, starts SurrealDB on port `8001`, and
+`make up` starts the API on port `8180`, starts SurrealDB on port `8100`, and
 prepares the database if needed by defining namespace `mnemosyne`, database
 `mnemosyne`, database-scoped user `mnemosyne`, schema, indexes, and views.
 

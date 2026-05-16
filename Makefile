@@ -2,8 +2,8 @@ ifneq (,$(wildcard .env))
 include .env
 endif
 
-API_PORT ?= 8000
-SURREAL_PORT ?= 8001
+API_PORT ?= 8180
+SURREAL_PORT ?= 8100
 SURREAL_URL ?= http://127.0.0.1:$(SURREAL_PORT)
 SURREAL_NAMESPACE ?= mnemosyne
 SURREAL_DATABASE ?= mnemosyne

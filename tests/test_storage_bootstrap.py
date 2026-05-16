@@ -101,7 +101,7 @@ def test_schemafull_fields_are_defined_for_persisted_tables() -> None:
 
 def test_surreal_field_validation_accepts_normalized_optional_types() -> None:
     backend = SurrealStorageBackend(
-        base_url="http://127.0.0.1:8000",
+        base_url="http://127.0.0.1:8100",
         namespace="mnemosyne",
         database="mnemosyne",
     )
@@ -147,7 +147,7 @@ def test_surreal_database_user_signin_uses_database_scope(
     monkeypatch.setattr(SurrealStorageBackend, "_send", fake_send)
 
     signed = SurrealStorageBackend(
-        base_url="http://127.0.0.1:8000",
+        base_url="http://127.0.0.1:8100",
         namespace="mnemosyne",
         database="mnemosyne",
         username="mnemosyne",
@@ -185,7 +185,7 @@ def test_surreal_upsert_relation_replaces_existing_in_edge(
     monkeypatch.setattr(SurrealStorageBackend, "query", fake_query)
 
     backend = SurrealStorageBackend(
-        base_url="http://127.0.0.1:8000",
+        base_url="http://127.0.0.1:8100",
         namespace="mnemosyne",
         database="mnemosyne",
     )
@@ -226,7 +226,7 @@ def test_surreal_matches_layout_returns_false_when_relation_is_missing(
     monkeypatch.setattr(SurrealStorageBackend, "_database_info", fake_database_info)
 
     backend = SurrealStorageBackend(
-        base_url="http://127.0.0.1:8000",
+        base_url="http://127.0.0.1:8100",
         namespace="mnemosyne",
         database="mnemosyne",
     )
