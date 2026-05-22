@@ -2,12 +2,12 @@ ifneq (,$(wildcard .env))
 include .env
 endif
 
-API_PORT ?= 8000
+API_PORT ?= 8180
 ARCADE_PORT ?= 2480
 ARCADE_URL ?= http://127.0.0.1:$(ARCADE_PORT)
 ARCADE_DATABASE ?= mnemosyne
 ARCADE_USERNAME ?= root
-ARCADE_PASSWORD ?= root
+ARCADE_PASSWORD ?= mnemosyne-root
 COMPOSE ?= docker compose
 COMPOSE_DEV ?= docker compose -f docker-compose.yml -f docker-compose.dev.yml
 

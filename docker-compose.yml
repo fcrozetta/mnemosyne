@@ -55,7 +55,7 @@ services:
       ARCADE_USERNAME: ${ARCADE_USERNAME:-root}
       ARCADE_PASSWORD: ${ARCADE_PASSWORD:-mnemosyne-root}
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-8180}:8000"
     healthcheck:
       test:
         - CMD

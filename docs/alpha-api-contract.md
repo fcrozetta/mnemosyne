@@ -18,7 +18,13 @@ See also:
 
 ## Health
 
-`GET /healthz`
+- Base path: endpoints are mounted at the service root, for example
+  `http://127.0.0.1:8180`.
+- Request bodies must use `Content-Type: application/json`.
+- Alpha observation endpoints do not require application-level client
+  authentication.
+  Deployment-level network or proxy auth is outside this API contract.
+- `GET /healthz` returns service readiness:
 
 ```json
 {

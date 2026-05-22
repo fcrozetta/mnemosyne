@@ -20,7 +20,7 @@ uv run ruff check .
 ```
 
 ArcadeDB is the default storage backend. The local Compose stack starts
-ArcadeDB Studio/API on port `2480` and the FastAPI app on port `8000`.
+ArcadeDB Studio/API on port `2480` and the FastAPI app on port `8180`.
 
 ```shell
 make up
@@ -43,7 +43,7 @@ uv run fastapi dev app/main.py --port 8000
 Create a note observation:
 
 ```shell
-curl -sS http://127.0.0.1:8000/observations \
+curl -sS http://127.0.0.1:8180/observations \
   -H 'Content-Type: application/json' \
   -d '{
     "type": "note",
@@ -59,7 +59,7 @@ curl -sS http://127.0.0.1:8000/observations \
 Patch an observation with the latest observed `version`:
 
 ```shell
-curl -sS -X PATCH http://127.0.0.1:8000/observations/obs_... \
+curl -sS -X PATCH http://127.0.0.1:8180/observations/obs_... \
   -H 'Content-Type: application/json' \
   -d '{"version": 1, "addendum": "It is the Oxford shirt."}'
 ```

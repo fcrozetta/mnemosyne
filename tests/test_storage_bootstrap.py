@@ -44,10 +44,12 @@ def test_compose_base_starts_arcadedb_and_api() -> None:
     assert "arcadedb:" in compose
     assert "arcadedata/arcadedb:" in compose
     assert '"${ARCADE_PORT:-2480}:2480"' in compose
+    assert '"${API_PORT:-8180}:8000"' in compose
     assert "db-bootstrap:" in compose
     assert "./db:/app/db:ro" in compose
     assert "MNEMOSYNE_STORAGE_BACKEND: arcade" in compose
     assert "ARCADE_URL: http://arcadedb:2480" in compose
+    assert "ARCADE_PASSWORD: ${ARCADE_PASSWORD:-mnemosyne-root}" in compose
     assert "surrealdb:" not in compose
     assert "SURREAL_" not in compose
 
@@ -62,8 +64,10 @@ def test_compose_dev_has_no_surreal_seed_import() -> None:
 def test_makefile_uses_arcade_defaults() -> None:
     makefile = _makefile()
 
+    assert "API_PORT ?= 8180" in makefile
     assert "ARCADE_PORT ?= 2480" in makefile
     assert "ARCADE_URL ?= http://127.0.0.1:$(ARCADE_PORT)" in makefile
+    assert "ARCADE_PASSWORD ?= mnemosyne-root" in makefile
     assert "SURREAL_" not in makefile
 
 
@@ -71,7 +75,9 @@ def test_env_example_uses_arcade_backend() -> None:
     env = _env_example()
 
     assert "MNEMOSYNE_STORAGE_BACKEND=arcade" in env
+    assert "API_PORT=8180" in env
     assert "ARCADE_URL=http://127.0.0.1:2480" in env
+    assert "ARCADE_PASSWORD=mnemosyne-root" in env
     assert "SURREAL_" not in env
 
 
