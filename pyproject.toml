@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mnemosyne"
 version = "0.1.0-alpha"
-description = "A note-first memory API for humans and agents."
+description = "A truth-center API for observations and user-life facts."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

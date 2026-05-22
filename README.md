@@ -1,66 +1,65 @@
 # mnemosyne
-Project that aims to be a place where humans and AI can share their brains.
+
+Truth-center backend for a user's life facts.
 
 ## Working Docs
 
+- [ArcadeDB schema design](docs/arcadedb-schema-design.md)
 - [Alpha model](docs/alpha-model.md)
 - [Alpha API contract](docs/alpha-api-contract.md)
 - [Alpha error model](docs/alpha-error-model.md)
 
-## Local Backend Skeleton
+## Local Backend
 
-The alpha backend starts as a minimal FastAPI app with repository and service
-boundaries plus a SurrealDB-backed storage readiness check. Runtime defaults to
-`MNEMOSYNE_STORAGE_BACKEND=surreal`; use `in-memory` only when you explicitly
-want a no-DB skeleton.
+The alpha backend exposes observations. A note is one observation type, not the
+center of the model.
 
 ```shell
 uv run pytest -q
 uv run ruff check .
 ```
 
-Local SurrealDB bootstrap uses Docker Compose and the SurrealDB CLI. The
-checked-in import files define schemafull tables, graph relation tables, and a
-small sample note graph:
+ArcadeDB is the default storage backend. The local Compose stack starts
+ArcadeDB Studio/API on port `2480` and the FastAPI app on port `8000`.
 
 ```shell
 make up
-make dev
 ```
 
-`make up` starts the API on port `8000`, starts SurrealDB on port `8001`, and
-prepares the database if needed by defining namespace `mnemosyne`, database
-`mnemosyne`, database-scoped user `mnemosyne`, schema, indexes, and views.
+`make up` builds the API image, starts ArcadeDB, creates the `mnemosyne`
+database when needed, and applies `db/schema.arcadesql`.
 
-`make dev` uses `docker-compose.dev.yml` on top of the base compose file and
-also imports `db/seed.surql`. Use it when you want the sample note graph.
-The `notes` materialized view is defined from `db/views.surql` after imports so
-`OPTION IMPORT` does not suppress view population. Override local credentials
-with `SURREAL_ROOT_PASSWORD` for root or `SURREAL_PASSWORD` for the database
-user.
-Agents should authenticate as `mnemosyne` with a database-scoped signin against
-namespace `mnemosyne` and database `mnemosyne`, not root.
+Use `make dev` for the same stack with local dev overrides.
 
-Export the current local database as a SurrealQL script:
-
-```shell
-make db-export
-```
-
-If an older local database has `notes` as a normal table, use a fresh
-`SURREAL_DATABASE` value or reset the local SurrealDB volume before seeding.
-The local reset command is destructive:
-
-```shell
-make db-clean
-make dev
-```
-
-The app entrypoint is `app.main:app`. `/healthz` is now fail-closed: it returns
-`503` unless the selected backend is actually usable. In `surreal` mode that
-means the server is reachable, the `mnemosyne` database user can sign in, and
-the expected schema/view/index layout is present.
+The app entrypoint is `app.main:app`. `/healthz` is fail-closed: it returns
+`503` unless the selected backend is usable.
 
 ```shell
 uv run fastapi dev app/main.py --port 8000
+```
+
+## Observation API
+
+Create a note observation:
+
+```shell
+curl -sS http://127.0.0.1:8000/observations \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "note",
+    "content": "My blue shirt is at John'\''s place.",
+    "mentions": [
+      {"type": "item", "label": "blue shirt"},
+      {"type": "location", "label": "John'\''s place"}
+    ],
+    "source": {"source_type": "agent", "label": "codex"}
+  }'
+```
+
+Patch an observation with the latest observed `version`:
+
+```shell
+curl -sS -X PATCH http://127.0.0.1:8000/observations/obs_... \
+  -H 'Content-Type: application/json' \
+  -d '{"version": 1, "addendum": "It is the Oxford shirt."}'
 ```

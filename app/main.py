@@ -5,45 +5,46 @@ from typing import Annotated, Any
 
 from fastapi import Body, Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
-from app.dependencies import get_notes_service
-from app.models.notes import (
-    AboutKind,
-    CreateNoteInput,
-    InvalidNotePatchError,
-    InvalidNoteRequestError,
-    Note,
-    NoteContext,
-    NoteNotFoundError,
-    NoteSearchResult,
-    PatchNoteInput,
-    PendingAboutRef,
-    Provenance,
-    ResolvedAboutRef,
+from app.dependencies import get_observations_service
+from app.models.observations import (
+    CreateObservationInput,
+    EntityMentionInput,
+    EntityType,
+    InvalidObservationPatchError,
+    InvalidObservationRequestError,
+    MentionedEntity,
+    Observation,
+    ObservationContext,
+    ObservationNotFoundError,
+    ObservationSearchResult,
+    ObservationType,
+    PatchObservationInput,
+    Source,
+    SourceInput,
+    SourceType,
     VersionConflictError,
-    split_about_refs,
 )
-from app.service.notes import NotesService
+from app.service.observations import ObservationsService
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Mnemosyne", version="0.1.0-alpha")
 
-    @app.exception_handler(NoteNotFoundError)
-    def handle_note_not_found(
+    @app.exception_handler(ObservationNotFoundError)
+    def handle_observation_not_found(
         _request: object,
-        exc: NoteNotFoundError,
+        exc: ObservationNotFoundError,
     ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content=_error_response(
-                error="note_not_found",
-                field="note_id",
-                message="Note was not found.",
-                code="note_not_found",
-                context={"note_id": exc.note_id},
+                error="observation_not_found",
+                field="observation_id",
+                message="Observation was not found.",
+                code="observation_not_found",
+                context={"observation_id": exc.observation_id},
             ),
         )
 
@@ -57,36 +58,36 @@ def create_app() -> FastAPI:
             content=_error_response(
                 error="version_conflict",
                 field="version",
-                message="Version does not match latest note version.",
+                message="Version does not match latest observation version.",
                 code="version_conflict",
                 context={
-                    "note_id": exc.note_id,
+                    "observation_id": exc.observation_id,
                     "current_version": exc.current_version,
                     "requested_version": exc.requested_version,
                 },
             ),
         )
 
-    @app.exception_handler(InvalidNotePatchError)
-    def handle_invalid_note_patch(
+    @app.exception_handler(InvalidObservationPatchError)
+    def handle_invalid_observation_patch(
         _request: object,
-        exc: InvalidNotePatchError,
+        exc: InvalidObservationPatchError,
     ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=_error_response(
-                error="invalid_note_patch",
+                error="invalid_observation_patch",
                 field=None,
                 message=str(exc),
-                code="invalid_note_patch",
+                code="invalid_observation_patch",
                 context=None,
             ),
         )
 
-    @app.exception_handler(InvalidNoteRequestError)
-    def handle_invalid_note_request(
+    @app.exception_handler(InvalidObservationRequestError)
+    def handle_invalid_observation_request(
         _request: object,
-        exc: InvalidNoteRequestError,
+        exc: InvalidObservationRequestError,
     ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -101,40 +102,21 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     def handle_request_validation_error(
-        request: Request,
+        _request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
-        error = "invalid_note_request"
-        body_message = "Request body is required."
-        if request.method == "PATCH" and request.url.path.startswith("/notes/"):
-            error = "invalid_note_patch"
-            body_message = "Patch body is required."
-
-        details: list[dict[str, Any]] = []
-        for issue in exc.errors():
-            field, message = _validation_error_detail(
-                issue,
-                body_message=body_message,
-            )
-            details.append(
-                {
-                    **({"field": field} if field is not None else {}),
-                    "message": message,
-                    "code": error,
-                }
-            )
-
+        details = [
+            {
+                "message": issue.get("msg", "Request validation failed."),
+                "code": "invalid_observation_request",
+            }
+            for issue in exc.errors()
+        ]
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
-                "error": error,
-                "details": details
-                or [
-                    {
-                        "message": "Request validation failed.",
-                        "code": error,
-                    }
-                ],
+                "error": "invalid_observation_request",
+                "details": details,
                 "request_id": None,
             },
         )
@@ -142,8 +124,11 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     def healthz(
         response: Response,
-        service: Annotated[NotesService, Depends(get_notes_service)],
-    ) -> dict:
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
+    ) -> dict[str, bool]:
         initialized = service.storage_initialized()
         if not initialized:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -152,692 +137,406 @@ def create_app() -> FastAPI:
             "storage_initialized": initialized,
         }
 
-    @app.post("/notes", status_code=status.HTTP_201_CREATED)
-    def create_note(
-        service: Annotated[NotesService, Depends(get_notes_service)],
+    @app.post("/observations", status_code=status.HTTP_201_CREATED)
+    def create_observation(
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
         body: Any = Body(...),
     ) -> dict[str, Any]:
-        note = service.create_note(_parse_create_note_input(body))
-        return _serialize_note(note)
+        observation = service.create_observation(_parse_create_observation_input(body))
+        return _serialize_observation(observation)
 
-    @app.get("/notes")
-    def search_notes(
-        service: Annotated[NotesService, Depends(get_notes_service)],
+    @app.get("/observations")
+    def search_observations(
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
         q: str = "",
         limit: int = 5,
     ) -> list[dict[str, Any]]:
         if not q.strip():
-            raise InvalidNoteRequestError(
-                error="invalid_note_request",
+            raise InvalidObservationRequestError(
+                error="invalid_observation_request",
                 field="q",
                 message="Query parameter q must be non-empty.",
             )
         if not 1 <= limit <= 50:
-            raise InvalidNoteRequestError(
-                error="invalid_note_request",
+            raise InvalidObservationRequestError(
+                error="invalid_observation_request",
                 field="limit",
                 message="Limit must be between 1 and 50.",
             )
         return [
             _serialize_search_result(result)
-            for result in service.search_notes(q, limit=limit)
+            for result in service.search_observations(q, limit=limit)
         ]
 
-    @app.get("/notes/{note_id}")
-    def get_note(
-        note_id: str,
-        service: Annotated[NotesService, Depends(get_notes_service)],
+    @app.get("/observations/{observation_id}")
+    def get_observation(
+        observation_id: str,
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
     ) -> dict[str, Any]:
-        return _serialize_note(service.get_note(note_id))
+        return _serialize_observation(service.get_observation(observation_id))
 
-    @app.patch("/notes/{note_id}")
-    def patch_note(
-        note_id: str,
-        service: Annotated[NotesService, Depends(get_notes_service)],
+    @app.patch("/observations/{observation_id}")
+    def patch_observation(
+        observation_id: str,
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
         body: Any = Body(...),
     ) -> dict[str, Any]:
-        patch = _parse_patch_note_input(body)
-        return _serialize_note(service.patch_note(note_id, patch))
+        return _serialize_observation(
+            service.patch_observation(
+                observation_id,
+                _parse_patch_observation_input(body),
+            )
+        )
 
-    @app.get("/notes/{note_id}/context")
-    def get_note_context(
-        note_id: str,
-        service: Annotated[NotesService, Depends(get_notes_service)],
+    @app.get("/observations/{observation_id}/context")
+    def get_observation_context(
+        observation_id: str,
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
     ) -> dict[str, Any]:
-        return _serialize_note_context(service.get_note_context(note_id))
+        return _serialize_observation_context(
+            service.get_observation_context(observation_id)
+        )
 
-    _install_openapi_schema(app)
     return app
 
 
-_OPENAPI_SCHEMA_REF_PREFIX = "#/components/schemas/"
+def _parse_create_observation_input(body: Any) -> CreateObservationInput:
+    data = _object_body(body, error="invalid_observation_request")
+    content = _required_non_empty_string(
+        data,
+        "content",
+        error="invalid_observation_request",
+    )
+    observation_type = _parse_observation_type(
+        data.get("type", ObservationType.NOTE.value),
+        error="invalid_observation_request",
+        field="type",
+    )
+    return CreateObservationInput(
+        type=observation_type,
+        content=content,
+        mentions=_parse_mentions(
+            data.get("mentions", ()),
+            error="invalid_observation_request",
+            field="mentions",
+        ),
+        observed_at=_parse_optional_datetime(
+            data.get("observed_at"),
+            error="invalid_observation_request",
+            field="observed_at",
+        ),
+        source=_parse_optional_source(
+            data.get("source"),
+            error="invalid_observation_request",
+            field="source",
+        ),
+    )
 
 
-_OPENAPI_COMPONENT_SCHEMAS: dict[str, dict[str, Any]] = {
-    "AboutKind": {
-        "type": "string",
-        "enum": ["person", "location", "item", "topic", "other"],
-    },
-    "ResolvedAboutInput": {
-        "type": "object",
-        "required": ["kind", "ref"],
-        "additionalProperties": False,
-        "properties": {
-            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
-            "ref": {
-                "type": "object",
-                "required": ["collection", "key"],
-                "additionalProperties": False,
-                "properties": {
-                    "collection": {"type": "string", "minLength": 1},
-                    "key": {"type": "string", "minLength": 1},
-                },
-            },
-        },
-    },
-    "PendingAboutInput": {
-        "type": "object",
-        "required": ["kind", "label"],
-        "additionalProperties": False,
-        "properties": {
-            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
-            "label": {"type": "string", "minLength": 1},
-        },
-    },
-    "AboutInput": {
-        "oneOf": [
-            {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ResolvedAboutInput"},
-            {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}PendingAboutInput"},
-        ],
-    },
-    "CreateNoteRequest": {
-        "type": "object",
-        "required": ["content"],
-        "additionalProperties": False,
-        "properties": {
-            "content": {
-                "type": "string",
-                "minLength": 1,
-                "description": "The full note text to store.",
-            },
-            "about": {
-                "type": "array",
-                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutInput"},
-                "default": [],
-            },
-            "observed_at": {
-                "type": "string",
-                "format": "date-time",
-                "description": (
-                    "When the fact was observed. Must include time and timezone."
-                ),
-            },
-            "source_channel": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Optional provenance channel, e.g. chat or email.",
-            },
-        },
-    },
-    "PatchNoteRequest": {
-        "type": "object",
-        "required": ["version"],
-        "additionalProperties": False,
-        "properties": {
-            "version": {
-                "type": "integer",
-                "minimum": 1,
-                "description": "Latest note version observed by the client.",
-            },
-            "addendum": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Text appended to the existing note content.",
-            },
-            "add_about": {
-                "type": "array",
-                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutInput"},
-                "default": [],
-            },
-            "observed_at": {
-                "type": "string",
-                "format": "date-time",
-                "description": (
-                    "Replacement observed timestamp for the new version. "
-                    "Must include timezone."
-                ),
-            },
-        },
-        "anyOf": [
-            {
-                "required": ["addendum"],
-                "properties": {"addendum": {"type": "string", "minLength": 1}},
-            },
-            {
-                "required": ["add_about"],
-                "properties": {
-                    "add_about": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutInput"},
-                    }
-                },
-            },
-            {"required": ["observed_at"]},
-        ],
-    },
-    "ResolvedAboutView": {
-        "type": "object",
-        "required": ["kind", "collection", "key"],
-        "additionalProperties": False,
-        "properties": {
-            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
-            "collection": {"type": "string"},
-            "key": {"type": "string"},
-        },
-    },
-    "PendingAboutView": {
-        "type": "object",
-        "required": ["kind", "label"],
-        "additionalProperties": False,
-        "properties": {
-            "kind": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}AboutKind"},
-            "label": {"type": "string"},
-        },
-    },
-    "NoteView": {
-        "type": "object",
-        "required": [
-            "note_id",
-            "version",
-            "content",
-            "observed_at",
-            "created_at",
-            "resolved_about",
-            "pending_about",
-        ],
-        "additionalProperties": False,
-        "properties": {
-            "note_id": {"type": "string", "pattern": "^note_[0-9]+$"},
-            "version": {"type": "integer", "minimum": 1},
-            "content": {"type": "string"},
-            "observed_at": {"type": "string", "format": "date-time"},
-            "created_at": {"type": "string", "format": "date-time"},
-            "resolved_about": {
-                "type": "array",
-                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ResolvedAboutView"},
-            },
-            "pending_about": {
-                "type": "array",
-                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}PendingAboutView"},
-            },
-        },
-    },
-    "NoteSearchResultView": {
-        "type": "object",
-        "required": ["note_id", "version", "content_preview", "observed_at", "score"],
-        "additionalProperties": False,
-        "properties": {
-            "note_id": {"type": "string", "pattern": "^note_[0-9]+$"},
-            "version": {"type": "integer", "minimum": 1},
-            "content_preview": {"type": "string"},
-            "observed_at": {"type": "string", "format": "date-time"},
-            "score": {"type": "number"},
-        },
-    },
-    "NoteContextView": {
-        "type": "object",
-        "required": ["note", "basis", "related_notes"],
-        "additionalProperties": False,
-        "properties": {
-            "note": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}NoteView"},
-            "basis": {
-                "type": "object",
-                "required": ["resolved_about", "pending_about"],
-                "additionalProperties": False,
-                "properties": {
-                    "resolved_about": {
-                        "type": "array",
-                        "items": {
-                            "$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ResolvedAboutView"
-                        },
-                    },
-                    "pending_about": {
-                        "type": "array",
-                        "items": {
-                            "$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}PendingAboutView"
-                        },
-                    },
-                },
-            },
-            "related_notes": {
-                "type": "array",
-                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}NoteSearchResultView"},
-            },
-        },
-    },
-    "ErrorDetail": {
-        "type": "object",
-        "required": ["message", "code"],
-        "additionalProperties": False,
-        "properties": {
-            "field": {"type": "string"},
-            "message": {"type": "string"},
-            "code": {"type": "string"},
-            "context": {"type": "object"},
-        },
-    },
-    "ErrorResponse": {
-        "type": "object",
-        "required": ["error", "details", "request_id"],
-        "additionalProperties": False,
-        "properties": {
-            "error": {
-                "type": "string",
-                "enum": [
-                    "invalid_note_request",
-                    "invalid_note_patch",
-                    "note_not_found",
-                    "version_conflict",
-                ],
-            },
-            "details": {
-                "type": "array",
-                "minItems": 1,
-                "items": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}ErrorDetail"},
-            },
-            "request_id": {"type": ["string", "null"], "default": None},
-        },
-    },
-}
-
-
-def _install_openapi_schema(app: FastAPI) -> None:
-    def custom_openapi() -> dict[str, Any]:
-        if app.openapi_schema:
-            return app.openapi_schema
-
-        schema = get_openapi(
-            title=app.title,
-            version=app.version,
-            routes=app.routes,
+def _parse_patch_observation_input(body: Any) -> PatchObservationInput:
+    data = _object_body(body, error="invalid_observation_patch")
+    version = data.get("version")
+    if not isinstance(version, int) or version < 1:
+        raise InvalidObservationRequestError(
+            error="invalid_observation_patch",
+            field="version",
+            message="version must be an integer greater than or equal to 1.",
         )
-        component_schemas = schema.setdefault("components", {}).setdefault(
-            "schemas",
-            {},
+    addendum = data.get("addendum")
+    if addendum is not None:
+        if not isinstance(addendum, str):
+            raise InvalidObservationRequestError(
+                error="invalid_observation_patch",
+                field="addendum",
+                message="addendum must be a string.",
+            )
+        addendum = addendum.strip()
+        if not addendum:
+            raise InvalidObservationRequestError(
+                error="invalid_observation_patch",
+                field="addendum",
+                message="addendum must be non-empty.",
+            )
+    mentions = _parse_mentions(
+        data.get("mentions", ()),
+        error="invalid_observation_patch",
+        field="mentions",
+    )
+    observed_at = _parse_optional_datetime(
+        data.get("observed_at"),
+        error="invalid_observation_patch",
+        field="observed_at",
+    )
+    if addendum is None and not mentions and observed_at is None:
+        raise InvalidObservationPatchError(
+            "Patch request must include at least one change."
         )
-        component_schemas.update(_OPENAPI_COMPONENT_SCHEMAS)
-        _patch_note_endpoint_openapi(schema)
-        app.openapi_schema = schema
-        return app.openapi_schema
-
-    app.openapi = custom_openapi
-
-
-def _patch_note_endpoint_openapi(schema: dict[str, Any]) -> None:
-    paths = schema.setdefault("paths", {})
-    note_collection = paths.setdefault("/notes", {})
-    note_member = paths.setdefault("/notes/{note_id}", {})
-    note_context = paths.setdefault("/notes/{note_id}/context", {})
-
-    _set_request_body(note_collection.setdefault("post", {}), "CreateNoteRequest")
-    _set_response(note_collection["post"], "201", "Created", "NoteView")
-    _set_response(note_collection["post"], "400", "Bad Request", "ErrorResponse")
-
-    _set_response(note_collection.setdefault("get", {}), "200", "OK", None)
-    note_collection["get"]["responses"]["200"]["content"] = {
-        "application/json": {
-            "schema": {
-                "type": "array",
-                "items": {
-                    "$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}NoteSearchResultView"
-                },
-            }
-        }
-    }
-    _set_response(note_collection["get"], "400", "Bad Request", "ErrorResponse")
-
-    _set_response(note_member.setdefault("get", {}), "200", "OK", "NoteView")
-    _set_response(note_member["get"], "404", "Not Found", "ErrorResponse")
-
-    _set_request_body(note_member.setdefault("patch", {}), "PatchNoteRequest")
-    _set_response(note_member["patch"], "200", "OK", "NoteView")
-    _set_response(note_member["patch"], "400", "Bad Request", "ErrorResponse")
-    _set_response(note_member["patch"], "404", "Not Found", "ErrorResponse")
-    _set_response(note_member["patch"], "409", "Conflict", "ErrorResponse")
-
-    _set_response(note_context.setdefault("get", {}), "200", "OK", "NoteContextView")
-    _set_response(note_context["get"], "404", "Not Found", "ErrorResponse")
+    return PatchObservationInput(
+        version=version,
+        addendum=addendum,
+        mentions=mentions,
+        observed_at=observed_at,
+    )
 
 
-def _set_request_body(operation: dict[str, Any], schema_name: str) -> None:
-    operation["requestBody"] = {
-        "required": True,
-        "content": {
-            "application/json": {
-                "schema": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}{schema_name}"}
-            }
-        },
-    }
-
-
-def _set_response(
-    operation: dict[str, Any],
-    status_code: str,
-    description: str,
-    schema_name: str | None,
-) -> None:
-    responses = operation.setdefault("responses", {})
-    response: dict[str, Any] = {"description": description}
-    if schema_name is not None:
-        response["content"] = {
-            "application/json": {
-                "schema": {"$ref": f"{_OPENAPI_SCHEMA_REF_PREFIX}{schema_name}"}
-            }
-        }
-    responses[status_code] = response
-
-
-def _parse_create_note_input(body: Any) -> CreateNoteInput:
+def _object_body(body: Any, *, error: str) -> dict[str, Any]:
     if not isinstance(body, dict):
-        raise InvalidNoteRequestError(
-            error="invalid_note_request",
+        raise InvalidObservationRequestError(
+            error=error,
             field=None,
             message="Request body must be an object.",
         )
-    content = body.get("content")
-    if not isinstance(content, str) or not content.strip():
-        raise InvalidNoteRequestError(
-            error="invalid_note_request",
-            field="content",
-            message="Content must be a non-empty string.",
+    return body
+
+
+def _required_non_empty_string(
+    data: dict[str, Any],
+    field: str,
+    *,
+    error: str,
+) -> str:
+    value = data.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise InvalidObservationRequestError(
+            error=error,
+            field=field,
+            message=f"{field} must be a non-empty string.",
         )
-
-    return CreateNoteInput(
-        content=content,
-        about=_parse_about_refs(body.get("about"), field="about"),
-        observed_at=_parse_datetime(body.get("observed_at"), field="observed_at"),
-        provenance=Provenance(source_type=_optional_string(body.get("source_channel"))),
-    )
+    return value
 
 
-def _parse_patch_note_input(body: Any) -> PatchNoteInput:
-    if not isinstance(body, dict):
-        raise InvalidNoteRequestError(
-            error="invalid_note_patch",
-            field=None,
-            message="Patch body must be an object.",
-        )
-    version = body.get("version")
-    if not isinstance(version, int) or isinstance(version, bool):
-        raise InvalidNoteRequestError(
-            error="invalid_note_patch",
-            field="version",
-            message="Version must be an integer.",
-        )
-
-    addendum = body.get("addendum")
-    if addendum is not None and not isinstance(addendum, str):
-        raise InvalidNoteRequestError(
-            error="invalid_note_patch",
-            field="addendum",
-            message="Addendum must be a string when provided.",
-        )
-    if isinstance(addendum, str) and not addendum.strip():
-        raise InvalidNoteRequestError(
-            error="invalid_note_patch",
-            field="addendum",
-            message="Addendum must be a non-empty string when provided.",
-        )
-
-    return PatchNoteInput(
-        version=version,
-        addendum=addendum,
-        add_about=_parse_about_refs(
-            body.get("add_about"),
-            field="add_about",
-            error="invalid_note_patch",
-        ),
-        observed_at=_parse_datetime(
-            body.get("observed_at"),
-            field="observed_at",
-            error="invalid_note_patch",
-        ),
-    )
-
-
-def _parse_about_refs(
+def _parse_observation_type(
     value: Any,
     *,
+    error: str,
     field: str,
-    error: str = "invalid_note_request",
-) -> tuple[ResolvedAboutRef | PendingAboutRef, ...]:
-    if value is None:
+) -> ObservationType:
+    try:
+        return ObservationType(str(value))
+    except ValueError as exc:
+        raise InvalidObservationRequestError(
+            error=error,
+            field=field,
+            message="type must be one of: note, document, message.",
+        ) from exc
+
+
+def _parse_mentions(
+    value: Any,
+    *,
+    error: str,
+    field: str,
+) -> tuple[EntityMentionInput, ...]:
+    if value in (None, ()):
         return ()
     if not isinstance(value, list):
-        raise InvalidNoteRequestError(
+        raise InvalidObservationRequestError(
             error=error,
             field=field,
             message=f"{field} must be a list.",
         )
-
-    parsed: list[ResolvedAboutRef | PendingAboutRef] = []
-    for index, item in enumerate(value):
-        if not isinstance(item, dict):
-            raise InvalidNoteRequestError(
-                error=error,
-                field=f"{field}[{index}]",
-                message="About entries must be objects.",
-            )
-
-        kind = _parse_about_kind(
-            item.get("kind"),
-            field=f"{field}[{index}].kind",
-            error=error,
-        )
-        ref = item.get("ref")
-        label = item.get("label")
-
-        if ref is not None and label is not None:
-            raise InvalidNoteRequestError(
-                error=error,
-                field=f"{field}[{index}]",
-                message="About entries must provide either ref or label, not both.",
-            )
-
-        if ref is not None:
-            if not isinstance(ref, dict):
-                raise InvalidNoteRequestError(
-                    error=error,
-                    field=f"{field}[{index}].ref",
-                    message="Resolved about refs must use an object ref.",
-                )
-            collection = ref.get("collection")
-            key = ref.get("key")
-            if not isinstance(collection, str) or not collection.strip():
-                raise InvalidNoteRequestError(
-                    error=error,
-                    field=f"{field}[{index}].ref.collection",
-                    message="Resolved about refs require a non-empty collection.",
-                )
-            if not isinstance(key, str) or not key.strip():
-                raise InvalidNoteRequestError(
-                    error=error,
-                    field=f"{field}[{index}].ref.key",
-                    message="Resolved about refs require a non-empty key.",
-                )
-            parsed.append(
-                ResolvedAboutRef(
-                    kind=kind,
-                    collection=collection,
-                    key=key,
-                )
-            )
-            continue
-
-        if not isinstance(label, str) or not label.strip():
-            raise InvalidNoteRequestError(
-                error=error,
-                field=f"{field}[{index}].label",
-                message="Pending about refs require a non-empty label.",
-            )
-        parsed.append(PendingAboutRef(kind=kind, label=label))
-
-    return tuple(parsed)
+    return tuple(_parse_mention(item, error=error, field=field) for item in value)
 
 
-def _parse_about_kind(
-    value: Any,
+def _parse_mention(
+    item: Any,
     *,
+    error: str,
     field: str,
-    error: str = "invalid_note_request",
-) -> AboutKind:
-    if not isinstance(value, str):
-        raise InvalidNoteRequestError(
+) -> EntityMentionInput:
+    if not isinstance(item, dict):
+        raise InvalidObservationRequestError(
             error=error,
             field=field,
-            message="About kind must be a string.",
+            message="Each mention must be an object.",
+        )
+    label = _required_non_empty_string(item, "label", error=error)
+    try:
+        entity_type = EntityType(str(item.get("type")))
+    except ValueError as exc:
+        raise InvalidObservationRequestError(
+            error=error,
+            field=f"{field}.type",
+            message=(
+                "mention type must be one of: person, location, item, topic, "
+                "other."
+            ),
+        ) from exc
+    return EntityMentionInput(type=entity_type, label=label)
+
+
+def _parse_optional_source(
+    value: Any,
+    *,
+    error: str,
+    field: str,
+) -> SourceInput | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise InvalidObservationRequestError(
+            error=error,
+            field=field,
+            message="source must be an object.",
         )
     try:
-        return AboutKind(value)
+        source_type = SourceType(str(value.get("source_type", SourceType.AGENT.value)))
     except ValueError as exc:
-        raise InvalidNoteRequestError(
+        raise InvalidObservationRequestError(
+            error=error,
+            field=f"{field}.source_type",
+            message=(
+                "source_type must be one of: user, agent, import, integration, system."
+            ),
+        ) from exc
+    return SourceInput(
+        source_type=source_type,
+        label=_optional_string(value.get("label"), field=f"{field}.label", error=error),
+        source_ref=_optional_string(
+            value.get("source_ref"),
+            field=f"{field}.source_ref",
+            error=error,
+        ),
+        writer=_optional_string(
+            value.get("writer"),
+            field=f"{field}.writer",
+            error=error,
+        ),
+        session_id=_optional_string(
+            value.get("session_id"),
+            field=f"{field}.session_id",
+            error=error,
+        ),
+        observed_channel=_optional_string(
+            value.get("observed_channel"),
+            field=f"{field}.observed_channel",
+            error=error,
+        ),
+    )
+
+
+def _optional_string(value: Any, *, field: str, error: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise InvalidObservationRequestError(
             error=error,
             field=field,
-            message=f"Unsupported about kind: {value!r}.",
-        ) from exc
+            message=f"{field} must be a non-empty string when provided.",
+        )
+    return value
 
 
-def _parse_datetime(
+def _parse_optional_datetime(
     value: Any,
     *,
+    error: str,
     field: str,
-    error: str = "invalid_note_request",
 ) -> datetime | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise InvalidNoteRequestError(
+        raise InvalidObservationRequestError(
             error=error,
             field=field,
             message=f"{field} must be an ISO 8601 datetime string.",
         )
-    if "T" not in value.upper():
-        raise InvalidNoteRequestError(
-            error=error,
-            field=field,
-            message=f"{field} must be an ISO 8601 datetime string.",
-        )
+    normalized = value.replace("Z", "+00:00")
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
-        raise InvalidNoteRequestError(
+        raise InvalidObservationRequestError(
             error=error,
             field=field,
             message=f"{field} must be an ISO 8601 datetime string.",
         ) from exc
     if parsed.tzinfo is None:
-        raise InvalidNoteRequestError(
+        raise InvalidObservationRequestError(
             error=error,
             field=field,
-            message=f"{field} must include a timezone offset.",
+            message=f"{field} must include timezone.",
         )
     return parsed
 
 
-def _serialize_note(note: Note) -> dict[str, Any]:
-    latest = note.latest_revision
-    assert latest is not None
+def _serialize_observation(observation: Observation) -> dict[str, Any]:
+    latest = observation.latest_revision
+    if latest is None:
+        raise ObservationNotFoundError(observation.observation_id)
     return {
-        "note_id": note.note_id,
+        "observation_id": observation.observation_id,
+        "type": observation.type.value,
         "version": latest.version,
+        "current_revision_id": latest.revision_id,
         "content": latest.content,
-        "observed_at": _iso(latest.observed_at),
-        "created_at": _iso(note.created_at),
-        "resolved_about": [
-            {
-                "kind": about_ref.kind,
-                "collection": about_ref.collection,
-                "key": about_ref.key,
-            }
-            for about_ref in latest.resolved_about
-        ],
-        "pending_about": [
-            {
-                "kind": about_ref.kind,
-                "label": about_ref.label,
-            }
-            for about_ref in latest.pending_about
-        ],
+        "content_format": latest.content_format,
+        "observed_at": _format_datetime(latest.observed_at),
+        "created_at": _format_datetime(observation.created_at),
+        "updated_at": _format_datetime(observation.updated_at),
+        "mentions": [_serialize_mention(mention) for mention in latest.mentions],
+        "source": _serialize_source(latest.source),
     }
 
 
-def _validation_error_detail(
-    issue: dict[str, Any],
-    *,
-    body_message: str,
-) -> tuple[str | None, str]:
-    location = issue.get("loc")
-    if not isinstance(location, tuple) or not location:
-        return None, "Request validation failed."
-
-    scope = location[0]
-    if scope == "body":
-        if len(location) == 1:
-            return None, body_message
-        field = ".".join(str(part) for part in location[1:])
-        return field, f"{field} is invalid."
-
-    if scope == "query" and len(location) >= 2:
-        field = str(location[1])
-        return field, f"Invalid value for {field}."
-
-    if scope == "path" and len(location) >= 2:
-        field = str(location[1])
-        return field, f"Invalid value for {field}."
-
-    return None, "Request validation failed."
-
-
-def _serialize_search_result(result: NoteSearchResult) -> dict[str, Any]:
+def _serialize_mention(mention: MentionedEntity) -> dict[str, Any]:
     return {
-        "note_id": result.note_id,
+        "entity_id": mention.entity_id,
+        "type": mention.type.value,
+        "label": mention.label,
+        "resolution_status": mention.resolution_status.value,
+    }
+
+
+def _serialize_source(source: Source | None) -> dict[str, Any] | None:
+    if source is None:
+        return None
+    return {
+        "source_id": source.source_id,
+        "source_type": source.source_type.value,
+        "label": source.label,
+        "source_ref": source.source_ref,
+    }
+
+
+def _serialize_search_result(result: ObservationSearchResult) -> dict[str, Any]:
+    return {
+        "observation_id": result.observation_id,
+        "type": result.type.value,
         "version": result.version,
         "content_preview": result.content_preview,
-        "observed_at": _iso(result.observed_at),
+        "observed_at": _format_datetime(result.observed_at),
         "score": result.score,
     }
 
 
-def _serialize_note_context(context: NoteContext) -> dict[str, Any]:
-    latest = context.note.latest_revision
-    assert latest is not None
-    resolved_about, pending_about = split_about_refs(
-        (*latest.resolved_about, *latest.pending_about)
-    )
+def _serialize_observation_context(context: ObservationContext) -> dict[str, Any]:
     return {
-        "note": _serialize_note(context.note),
-        "basis": {
-            "resolved_about": [
-                {
-                    "kind": about_ref.kind,
-                    "collection": about_ref.collection,
-                    "key": about_ref.key,
-                }
-                for about_ref in resolved_about
-            ],
-            "pending_about": [
-                {
-                    "kind": about_ref.kind,
-                    "label": about_ref.label,
-                }
-                for about_ref in pending_about
-            ],
-        },
-        "related_notes": [
-            _serialize_search_result(result) for result in context.related_notes
+        "observation": _serialize_observation(context.observation),
+        "related_observations": [
+            _serialize_search_result(result)
+            for result in context.related_observations
         ],
     }
+
+
+def _format_datetime(value: datetime) -> str:
+    normalized = value.astimezone(UTC)
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 def _error_response(
@@ -849,13 +548,11 @@ def _error_response(
     context: dict[str, Any] | None,
 ) -> dict[str, Any]:
     detail: dict[str, Any] = {
+        **({"field": field} if field is not None else {}),
         "message": message,
         "code": code,
+        **({"context": context} if context is not None else {}),
     }
-    if field is not None:
-        detail["field"] = field
-    if context is not None:
-        detail["context"] = context
     return {
         "error": error,
         "details": [detail],
@@ -863,12 +560,7 @@ def _error_response(
     }
 
 
-def _optional_string(value: Any) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
-
-
 app = create_app()
+
+
+__all__ = ["app", "create_app"]

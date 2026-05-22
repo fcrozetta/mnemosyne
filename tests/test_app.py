@@ -4,14 +4,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.dependencies import (
-    build_notes_repository,
-    get_notes_service,
-    reset_notes_repository_cache,
+    build_observations_repository,
+    get_observations_service,
+    reset_observations_repository_cache,
 )
 from app.main import create_app
-from app.repository.notes_in_memory import InMemoryNotesRepository
-from app.repository.notes_surreal import SurrealNotesRepository
-from app.service.notes import NotesService
+from app.repository.observations_arcade import ArcadeObservationsRepository
+from app.repository.observations_in_memory import InMemoryObservationsRepository
+from app.service.observations import ObservationsService
 
 
 class _StubRepository:
@@ -27,9 +27,9 @@ class _StubRepository:
 
 @pytest.fixture(autouse=True)
 def clear_repository_cache() -> None:
-    reset_notes_repository_cache()
+    reset_observations_repository_cache()
     yield
-    reset_notes_repository_cache()
+    reset_observations_repository_cache()
 
 
 def test_health_reports_initialized_storage_for_in_memory_backend(
@@ -47,7 +47,7 @@ def test_health_reports_initialized_storage_for_in_memory_backend(
 
 def test_health_returns_503_when_storage_is_not_initialized() -> None:
     app = create_app()
-    app.dependency_overrides[get_notes_service] = lambda: NotesService(
+    app.dependency_overrides[get_observations_service] = lambda: ObservationsService(
         repository=_StubRepository(initialized=False)
     )
     client = TestClient(app)
@@ -58,23 +58,33 @@ def test_health_returns_503_when_storage_is_not_initialized() -> None:
     assert response.json() == {"ok": False, "storage_initialized": False}
 
 
-def test_build_notes_repository_defaults_to_surreal(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("MNEMOSYNE_STORAGE_BACKEND", raising=False)
-    monkeypatch.delenv("SURREAL_URL", raising=False)
-
-    repository = build_notes_repository()
-
-    assert isinstance(repository, SurrealNotesRepository)
-    assert repository.runtime.base_url == "http://127.0.0.1:8001"
-
-
-def test_build_notes_repository_supports_in_memory(
+def test_build_observations_repository_supports_in_memory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
 
-    repository = build_notes_repository()
+    repository = build_observations_repository()
 
-    assert isinstance(repository, InMemoryNotesRepository)
+    assert isinstance(repository, InMemoryObservationsRepository)
+
+
+def test_build_observations_repository_defaults_to_arcade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MNEMOSYNE_STORAGE_BACKEND", raising=False)
+    monkeypatch.delenv("ARCADE_URL", raising=False)
+
+    repository = build_observations_repository()
+
+    assert isinstance(repository, ArcadeObservationsRepository)
+    assert repository.runtime.base_url == "http://127.0.0.1:2480"
+    assert repository.runtime.database == "mnemosyne"
+
+
+def test_build_observations_repository_rejects_unknown_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "bogus")
+
+    with pytest.raises(ValueError, match="Unsupported storage backend"):
+        build_observations_repository()

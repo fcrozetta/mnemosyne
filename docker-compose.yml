@@ -1,85 +1,47 @@
 services:
-  surrealdb:
-    image: surrealdb/surrealdb:latest-dev
-    command:
-      - start
-      - --user
-      - ${SURREAL_ROOT_USERNAME:-root}
-      - --pass
-      - ${SURREAL_ROOT_PASSWORD:-root}
-      - surrealkv:///data/mnemosyne.db
+  arcadedb:
+    image: arcadedata/arcadedb:latest
+    environment:
+      JAVA_OPTS: >-
+        -Darcadedb.server.rootPassword=${ARCADE_PASSWORD:-root}
     ports:
-      - "${SURREAL_PORT:-8001}:8000"
+      - "${ARCADE_PORT:-2480}:2480"
     volumes:
-      - surrealdb-data:/data
-      - ./db:/db:ro
-    healthcheck:
-      test:
-        - CMD
-        - /surreal
-        - is-ready
-        - --endpoint
-        - http://127.0.0.1:8000
-        - --log
-        - none
-      interval: 2s
-      timeout: 5s
-      retries: 30
+      - arcadedb-data:/home/arcadedb/databases
 
   db-bootstrap:
-    image: surrealdb/surrealdb:latest-dev
+    build: .
     depends_on:
-      surrealdb:
-        condition: service_healthy
+      arcadedb:
+        condition: service_started
     environment:
-      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-mnemosyne}
-      SURREAL_DATABASE: ${SURREAL_DATABASE:-mnemosyne}
-      SURREAL_ROOT_USERNAME: ${SURREAL_ROOT_USERNAME:-root}
-      SURREAL_ROOT_PASSWORD: ${SURREAL_ROOT_PASSWORD:-root}
-      SURREAL_USERNAME: ${SURREAL_USERNAME:-mnemosyne}
-      SURREAL_PASSWORD: ${SURREAL_PASSWORD:-mnemosyne}
-      SURREAL_DATABASE_ROLE: ${SURREAL_DATABASE_ROLE:-EDITOR}
-    volumes:
-      - ./db:/db:ro
-    entrypoint:
-      - /bin/sh
-      - -ec
+      ARCADE_URL: http://arcadedb:2480
+      ARCADE_DATABASE: ${ARCADE_DATABASE:-mnemosyne}
+      ARCADE_USERNAME: ${ARCADE_USERNAME:-root}
+      ARCADE_PASSWORD: ${ARCADE_PASSWORD:-root}
+    command:
+      - python
+      - -c
       - |
-        printf 'DEFINE NAMESPACE IF NOT EXISTS %s;
-        USE NS %s;
-        DEFINE DATABASE IF NOT EXISTS %s;
-        USE DB %s;
-        DEFINE USER OVERWRITE %s ON DATABASE PASSWORD "%s" ROLES %s;
-        ' "$$SURREAL_NAMESPACE" "$$SURREAL_NAMESPACE" "$$SURREAL_DATABASE" "$$SURREAL_DATABASE" "$$SURREAL_USERNAME" "$$SURREAL_PASSWORD" "$$SURREAL_DATABASE_ROLE" |
-          /surreal sql \
-            --endpoint http://surrealdb:8000 \
-            --auth-level root \
-            --username "$$SURREAL_ROOT_USERNAME" \
-            --password "$$SURREAL_ROOT_PASSWORD" \
-            --namespace "$$SURREAL_NAMESPACE" \
-            --database "$$SURREAL_DATABASE" \
-            --hide-welcome \
-            --log none
-        /surreal import \
-          --endpoint http://surrealdb:8000 \
-          --auth-level root \
-          --username "$$SURREAL_ROOT_USERNAME" \
-          --password "$$SURREAL_ROOT_PASSWORD" \
-          --namespace "$$SURREAL_NAMESPACE" \
-          --database "$$SURREAL_DATABASE" \
-          --log none \
-          /db/schema.surql
-        /surreal sql \
-          --endpoint http://surrealdb:8000 \
-          --auth-level root \
-          --username "$$SURREAL_ROOT_USERNAME" \
-          --password "$$SURREAL_ROOT_PASSWORD" \
-          --namespace "$$SURREAL_NAMESPACE" \
-          --database "$$SURREAL_DATABASE" \
-          --hide-welcome \
-          --multi \
-          --log none \
-          < /db/views.surql
+        import time
+        from app.storage.arcade import ArcadeStorageBackend
+
+        backend = ArcadeStorageBackend(
+            base_url="${ARCADE_URL:-http://arcadedb:2480}",
+            database="${ARCADE_DATABASE:-mnemosyne}",
+            username="${ARCADE_USERNAME:-root}",
+            password="${ARCADE_PASSWORD:-root}",
+        )
+        for _ in range(60):
+            if backend.ready():
+                break
+            time.sleep(1)
+        else:
+            raise SystemExit("ArcadeDB did not become ready.")
+        backend.ensure_database()
+        backend.apply_default_schema()
+    volumes:
+      - ./db:/app/db:ro
 
   api:
     build: .
@@ -87,14 +49,11 @@ services:
       db-bootstrap:
         condition: service_completed_successfully
     environment:
-      MNEMOSYNE_STORAGE_BACKEND: surreal
-      SURREAL_URL: http://surrealdb:8000
-      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-mnemosyne}
-      SURREAL_DATABASE: ${SURREAL_DATABASE:-mnemosyne}
-      SURREAL_USERNAME: ${SURREAL_USERNAME:-mnemosyne}
-      SURREAL_PASSWORD: ${SURREAL_PASSWORD:-mnemosyne}
-      SURREAL_ROOT_USERNAME: ${SURREAL_ROOT_USERNAME:-root}
-      SURREAL_ROOT_PASSWORD: ${SURREAL_ROOT_PASSWORD:-root}
+      MNEMOSYNE_STORAGE_BACKEND: arcade
+      ARCADE_URL: http://arcadedb:2480
+      ARCADE_DATABASE: ${ARCADE_DATABASE:-mnemosyne}
+      ARCADE_USERNAME: ${ARCADE_USERNAME:-root}
+      ARCADE_PASSWORD: ${ARCADE_PASSWORD:-root}
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:
@@ -108,4 +67,4 @@ services:
       retries: 12
 
 volumes:
-  surrealdb-data:
+  arcadedb-data:
