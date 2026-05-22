@@ -21,7 +21,7 @@ class ArcadeStorageBackend:
     base_url: str
     database: str = "mnemosyne"
     username: str = "root"
-    password: str = "root"
+    password: str = "mnemosyne-root"
     timeout_seconds: float = 5.0
 
     def ready(self) -> bool:

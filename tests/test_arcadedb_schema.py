@@ -85,7 +85,7 @@ def test_arcade_backend_creates_database_and_applies_schema() -> None:
         base_url="http://127.0.0.1:2480",
         database="mnemosyne",
         username="root",
-        password="root",
+        password="mnemosyne-root",
     )
 
     backend.ensure_database()

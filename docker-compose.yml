@@ -3,7 +3,7 @@ services:
     image: arcadedata/arcadedb:latest
     environment:
       JAVA_OPTS: >-
-        -Darcadedb.server.rootPassword=${ARCADE_PASSWORD:-root}
+        -Darcadedb.server.rootPassword=${ARCADE_PASSWORD:-mnemosyne-root}
     ports:
       - "${ARCADE_PORT:-2480}:2480"
     volumes:
@@ -18,7 +18,7 @@ services:
       ARCADE_URL: http://arcadedb:2480
       ARCADE_DATABASE: ${ARCADE_DATABASE:-mnemosyne}
       ARCADE_USERNAME: ${ARCADE_USERNAME:-root}
-      ARCADE_PASSWORD: ${ARCADE_PASSWORD:-root}
+      ARCADE_PASSWORD: ${ARCADE_PASSWORD:-mnemosyne-root}
     command:
       - python
       - -c
@@ -30,7 +30,7 @@ services:
             base_url="${ARCADE_URL:-http://arcadedb:2480}",
             database="${ARCADE_DATABASE:-mnemosyne}",
             username="${ARCADE_USERNAME:-root}",
-            password="${ARCADE_PASSWORD:-root}",
+            password="${ARCADE_PASSWORD:-mnemosyne-root}",
         )
         for _ in range(60):
             if backend.ready():
@@ -53,7 +53,7 @@ services:
       ARCADE_URL: http://arcadedb:2480
       ARCADE_DATABASE: ${ARCADE_DATABASE:-mnemosyne}
       ARCADE_USERNAME: ${ARCADE_USERNAME:-root}
-      ARCADE_PASSWORD: ${ARCADE_PASSWORD:-root}
+      ARCADE_PASSWORD: ${ARCADE_PASSWORD:-mnemosyne-root}
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:

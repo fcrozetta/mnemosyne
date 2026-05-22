@@ -21,7 +21,7 @@ def build_observations_repository() -> ObservationsRepository:
             base_url=os.getenv("ARCADE_URL", "http://127.0.0.1:2480"),
             database=os.getenv("ARCADE_DATABASE", "mnemosyne"),
             username=os.getenv("ARCADE_USERNAME", "root"),
-            password=os.getenv("ARCADE_PASSWORD", "root"),
+            password=os.getenv("ARCADE_PASSWORD", "mnemosyne-root"),
             timeout_seconds=float(os.getenv("ARCADE_TIMEOUT_SECONDS", "5")),
         )
         return ArcadeObservationsRepository(runtime=runtime)
