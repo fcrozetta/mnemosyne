@@ -251,7 +251,7 @@ def _parse_create_observation_input(body: Any) -> CreateObservationInput:
 def _parse_patch_observation_input(body: Any) -> PatchObservationInput:
     data = _object_body(body, error="invalid_observation_patch")
     version = data.get("version")
-    if not isinstance(version, int) or version < 1:
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
         raise InvalidObservationRequestError(
             error="invalid_observation_patch",
             field="version",

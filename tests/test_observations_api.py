@@ -157,6 +157,33 @@ def test_observation_patch_returns_version_conflict_shape(monkeypatch) -> None:
     }
 
 
+def test_observation_patch_rejects_boolean_version(monkeypatch) -> None:
+    monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
+    client = _client()
+    created = client.post(
+        "/observations",
+        json={"type": "note", "content": "Need to pick up my shirt."},
+    ).json()
+
+    response = client.patch(
+        f"/observations/{created['observation_id']}",
+        json={"version": True, "addendum": "It is blue."},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_observation_patch",
+        "details": [
+            {
+                "field": "version",
+                "message": "version must be an integer greater than or equal to 1.",
+                "code": "invalid_observation_patch",
+            }
+        ],
+        "request_id": None,
+    }
+
+
 def test_notes_endpoint_is_not_part_of_the_alpha_observation_api(monkeypatch) -> None:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     client = _client()

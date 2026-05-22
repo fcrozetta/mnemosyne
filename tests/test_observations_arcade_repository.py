@@ -52,6 +52,65 @@ class _FakeArcadeBackend:
         return {"result": []}
 
 
+def test_arcade_repository_search_uses_current_revision_and_observation_type() -> None:
+    class _SearchBackend(_FakeArcadeBackend):
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries: list[tuple[str, dict[str, object] | None]] = []
+
+        def query(
+            self,
+            query: str,
+            *,
+            language: str = "sql",
+            params: dict[str, object] | None = None,
+        ) -> object:
+            del language
+            self.queries.append((query, params))
+            if "FROM Observation" in query and "CurrentRevision" in query:
+                return {
+                    "result": [
+                        {
+                            "observation_id": "obs_001",
+                            "observation_type": "document",
+                            "version": 2,
+                            "content": "The blue shirt is at John's place.",
+                            "observed_at": "2026-04-06T18:05:00Z",
+                        }
+                    ]
+                }
+            return {
+                "result": [
+                    {
+                        "observation_id": "obs_001",
+                        "version": 1,
+                        "content": "The blue shirt is missing.",
+                        "observed_at": "2026-04-06T17:00:00Z",
+                    },
+                    {
+                        "observation_id": "obs_001",
+                        "version": 2,
+                        "content": "The blue shirt is at John's place.",
+                        "observed_at": "2026-04-06T18:05:00Z",
+                    },
+                ]
+            }
+
+    backend = _SearchBackend()
+    repository = ArcadeObservationsRepository(runtime=backend)
+
+    results = repository.search_observations("shirt", limit=5)
+
+    assert [(item.observation_id, item.type, item.version) for item in results] == [
+        ("obs_001", ObservationType.DOCUMENT, 2)
+    ]
+    query, params = backend.queries[0]
+    assert "FROM Observation" in query
+    assert "CurrentRevision" in query
+    assert "FROM Revision" not in query
+    assert params == {"query": "%shirt%", "limit": 5}
+
+
 def test_arcade_repository_create_observation_writes_truth_graph() -> None:
     backend = _FakeArcadeBackend()
     repository = ArcadeObservationsRepository(
@@ -165,11 +224,16 @@ def test_arcade_repository_patch_observation_uses_version_guard() -> None:
     assert observation == updated
     script, language, params = backend.commands[0]
     assert language == "sqlscript"
+    assert "LOCK TYPE" not in script
     assert "WHERE observation_id = :observation_id" in script
     assert "current_version = :expected_version" in script
     assert "CREATE VERTEX Revision CONTENT" in script
     assert "CREATE EDGE PreviousRevision" in script
     assert "DELETE FROM CurrentRevision" in script
+    assert (
+        "`@out` IN (SELECT FROM Observation WHERE observation_id = :observation_id)"
+        in script
+    )
     assert "CREATE EDGE CurrentRevision" in script
     assert params is not None
     assert params["expected_version"] == 1

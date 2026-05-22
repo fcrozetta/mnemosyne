@@ -92,10 +92,15 @@ class ArcadeObservationsRepository(ObservationsRepository):
     ) -> tuple[ObservationSearchResult, ...]:
         result = self.runtime.query(
             (
-                "SELECT FROM Revision WHERE content.toLowerCase() CONTAINS "
-                ":query LIMIT :limit"
+                "SELECT observation_id, observation_type, "
+                "out('CurrentRevision')[0].version AS version, "
+                "out('CurrentRevision')[0].content AS content, "
+                "out('CurrentRevision')[0].observed_at AS observed_at "
+                "FROM Observation WHERE "
+                "out('CurrentRevision')[0].content.toLowerCase() LIKE :query "
+                "LIMIT :limit"
             ),
-            params={"query": query.casefold(), "limit": limit},
+            params={"query": f"%{query.casefold()}%", "limit": limit},
         )
         matches: list[ObservationSearchResult] = []
         for row in _records(result):
@@ -106,7 +111,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             matches.append(
                 ObservationSearchResult(
                     observation_id=str(row["observation_id"]),
-                    type=ObservationType.NOTE,
+                    type=ObservationType(str(row.get("observation_type", "note"))),
                     version=int(row["version"]),
                     content_preview=content_preview(content),
                     observed_at=_datetime(row["observed_at"]),
@@ -352,7 +357,6 @@ class ArcadeObservationsRepository(ObservationsRepository):
     ) -> tuple[str, dict[str, object]]:
         lines = [
             "BEGIN;",
-            "LOCK TYPE Observation;",
             (
                 "UPDATE Observation SET current_version = :next_version, "
                 "updated_at = :updated_at WHERE observation_id = :observation_id "
@@ -368,7 +372,8 @@ class ArcadeObservationsRepository(ObservationsRepository):
             ),
             (
                 "DELETE FROM CurrentRevision WHERE "
-                "out.observation_id = :observation_id;"
+                "`@out` IN (SELECT FROM Observation "
+                "WHERE observation_id = :observation_id);"
             ),
             _edge_current_revision(),
         ]
