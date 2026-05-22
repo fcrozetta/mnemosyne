@@ -12,7 +12,8 @@ See also:
 - `Observation` is the public write/read object.
 - `Note` is one observation type.
 - Public identity is `observation_id`.
-- Public `version` is optimistic concurrency for the current revision.
+- Public `version` identifies the latest revision returned by reads; patch
+  requests do not supply a version.
 - Mentions are evidence navigation, not truth claims.
 - Claims are storage/schema-ready but claim-writing endpoints are deferred.
 
@@ -116,7 +117,6 @@ Returns the latest observation revision projection.
 
 ```json
 {
-  "version": 1,
   "addendum": "It is the Oxford shirt.",
   "mentions": [
     { "type": "item", "label": "Oxford shirt" }
@@ -126,6 +126,7 @@ Returns the latest observation revision projection.
 ```
 
 At least one of `addendum`, `mentions`, or `observed_at` is required.
+The next revision version is assigned internally.
 
 ## Context
 

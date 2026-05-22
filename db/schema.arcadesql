@@ -81,5 +81,5 @@ CREATE INDEX IF NOT EXISTS ON Entity (entity_id) UNIQUE;
 CREATE INDEX IF NOT EXISTS ON Entity (entity_type, normalized_label) UNIQUE;
 CREATE INDEX IF NOT EXISTS ON Claim (claim_id) UNIQUE;
 CREATE INDEX IF NOT EXISTS ON Source (source_id) UNIQUE;
-CREATE INDEX IF NOT EXISTS ON Source (source_type, label, source_ref) UNIQUE;
+CREATE INDEX IF NOT EXISTS ON Source (source_type, label, source_ref) UNIQUE NULL_STRATEGY INDEX;
 CREATE INDEX IF NOT EXISTS ON CurrentRevision (`@out`) UNIQUE;

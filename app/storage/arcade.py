@@ -31,9 +31,12 @@ class ArcadeStorageBackend:
             return False
         return True
 
-    def ensure_database(self) -> bool:
+    def database_exists(self) -> bool:
         exists = self._send("GET", f"/api/v1/exists/{self.database}")
-        if isinstance(exists, dict) and exists.get("result") is True:
+        return isinstance(exists, dict) and exists.get("result") is True
+
+    def ensure_database(self) -> bool:
+        if self.database_exists():
             return False
         self._send(
             "POST",

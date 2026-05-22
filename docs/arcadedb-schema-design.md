@@ -339,7 +339,7 @@ Return:
 API rules:
 
 - public identity is `observation_id`, not `note_id`
-- public version maps to `Revision.version`
+- returned version maps to `Revision.version`; patch requests do not supply it
 - content maps to `Revision.content`
 - supplied mentions create `MENTIONS` edges, not truth claims
 - optional agent-derived claims create `Claim` vertices supported by the revision

@@ -24,7 +24,6 @@ from app.models.observations import (
     Source,
     SourceInput,
     SourceType,
-    VersionConflictError,
 )
 from app.service.observations import ObservationsService
 
@@ -45,26 +44,6 @@ def create_app() -> FastAPI:
                 message="Observation was not found.",
                 code="observation_not_found",
                 context={"observation_id": exc.observation_id},
-            ),
-        )
-
-    @app.exception_handler(VersionConflictError)
-    def handle_version_conflict(
-        _request: object,
-        exc: VersionConflictError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content=_error_response(
-                error="version_conflict",
-                field="version",
-                message="Version does not match latest observation version.",
-                code="version_conflict",
-                context={
-                    "observation_id": exc.observation_id,
-                    "current_version": exc.current_version,
-                    "requested_version": exc.requested_version,
-                },
             ),
         )
 
@@ -102,20 +81,29 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     def handle_request_validation_error(
-        _request: Request,
+        request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
+        error = "invalid_observation_request"
+        body_message = "Request body is required."
+        if (
+            request.method == "PATCH"
+            and request.url.path.startswith("/observations/")
+        ):
+            error = "invalid_observation_patch"
+            body_message = "Patch body is required."
+
         details = [
             {
-                "message": issue.get("msg", "Request validation failed."),
-                "code": "invalid_observation_request",
+                "message": _validation_error_message(issue, body_message),
+                "code": error,
             }
             for issue in exc.errors()
         ]
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
-                "error": "invalid_observation_request",
+                "error": error,
                 "details": details,
                 "request_id": None,
             },
@@ -250,12 +238,11 @@ def _parse_create_observation_input(body: Any) -> CreateObservationInput:
 
 def _parse_patch_observation_input(body: Any) -> PatchObservationInput:
     data = _object_body(body, error="invalid_observation_patch")
-    version = data.get("version")
-    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+    if "version" in data:
         raise InvalidObservationRequestError(
             error="invalid_observation_patch",
             field="version",
-            message="version must be an integer greater than or equal to 1.",
+            message="version is assigned internally and must not be provided.",
         )
     addendum = data.get("addendum")
     if addendum is not None:
@@ -287,7 +274,6 @@ def _parse_patch_observation_input(body: Any) -> PatchObservationInput:
             "Patch request must include at least one change."
         )
     return PatchObservationInput(
-        version=version,
         addendum=addendum,
         mentions=mentions,
         observed_at=observed_at,
@@ -537,6 +523,13 @@ def _serialize_observation_context(context: ObservationContext) -> dict[str, Any
 def _format_datetime(value: datetime) -> str:
     normalized = value.astimezone(UTC)
     return normalized.isoformat().replace("+00:00", "Z")
+
+
+def _validation_error_message(issue: dict[str, Any], body_message: str) -> str:
+    location = issue.get("loc", ())
+    if tuple(location) == ("body",):
+        return body_message
+    return str(issue.get("msg", "Request validation failed."))
 
 
 def _error_response(

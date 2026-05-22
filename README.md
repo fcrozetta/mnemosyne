@@ -56,10 +56,10 @@ curl -sS http://127.0.0.1:8180/observations \
   }'
 ```
 
-Patch an observation with the latest observed `version`:
+Patch an observation. The next revision version is assigned internally:
 
 ```shell
 curl -sS -X PATCH http://127.0.0.1:8180/observations/obs_... \
   -H 'Content-Type: application/json' \
-  -d '{"version": 1, "addendum": "It is the Oxford shirt."}'
+  -d '{"addendum": "It is the Oxford shirt."}'
 ```

@@ -23,14 +23,15 @@ services:
       - python
       - -c
       - |
+        import os
         import time
         from app.storage.arcade import ArcadeStorageBackend
 
         backend = ArcadeStorageBackend(
-            base_url="${ARCADE_URL:-http://arcadedb:2480}",
-            database="${ARCADE_DATABASE:-mnemosyne}",
-            username="${ARCADE_USERNAME:-root}",
-            password="${ARCADE_PASSWORD:-mnemosyne-root}",
+            base_url=os.environ["ARCADE_URL"],
+            database=os.environ["ARCADE_DATABASE"],
+            username=os.environ["ARCADE_USERNAME"],
+            password=os.environ["ARCADE_PASSWORD"],
         )
         for _ in range(60):
             if backend.ready():

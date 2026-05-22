@@ -148,8 +148,7 @@ Test:
 
 - `POST /observations` accepts `{type:"note", content, mentions, source}` and returns `observation_id`, `type`, `version`, `content`, `mentions`, and `source`.
 - `GET /observations/{observation_id}` returns latest revision.
-- `PATCH /observations/{observation_id}` requires latest `version` and creates a new revision.
-- stale patch returns `409 version_conflict` with `observation_id`.
+- `PATCH /observations/{observation_id}` creates a new revision without a caller-supplied version.
 - `GET /observations?q=shirt` searches latest revision content.
 - `/notes` returns 404 because compatibility is intentionally broken.
 
@@ -221,7 +220,7 @@ Assert create writes:
 - source upsert and `ObservedFrom`
 - entity upsert and `Mentions`
 
-Assert patch uses the current version guard and rewires `CurrentRevision`.
+Assert patch increments the current version internally and rewires `CurrentRevision`.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -323,4 +322,3 @@ Type consistency:
 - Revision ID is `obs_...:vN`.
 - Revision-to-entity edge is `Mentions`.
 - Claim-to-entity edge is `About`.
-

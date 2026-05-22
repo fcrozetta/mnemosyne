@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
-import pytest
-
 from app.models.observations import (
     CreateObservationInput,
     EntityMentionInput,
@@ -13,7 +11,6 @@ from app.models.observations import (
     PatchObservationInput,
     SourceInput,
     SourceType,
-    VersionConflictError,
 )
 from app.repository.observations_in_memory import InMemoryObservationsRepository
 
@@ -80,7 +77,6 @@ def test_create_patch_search_and_context_flow() -> None:
     patched = repository.patch_observation(
         "obs_001",
         PatchObservationInput(
-            version=1,
             addendum="It is the blue one.",
             mentions=(
                 EntityMentionInput(type=EntityType.LOCATION, label="John's place"),
@@ -122,7 +118,7 @@ def test_create_patch_search_and_context_flow() -> None:
     assert context.related_observations[0].score == 2.0
 
 
-def test_stale_patch_raises_version_conflict() -> None:
+def test_patch_increments_version_internally() -> None:
     repository = InMemoryObservationsRepository(
         observation_id_factory=lambda: "obs_001",
         entity_id_factory=lambda: "ent_unused",
@@ -135,17 +131,14 @@ def test_stale_patch_raises_version_conflict() -> None:
             content="Need to pick up my shirt.",
         )
     )
-    repository.patch_observation(
+    first_patch = repository.patch_observation(
         "obs_001",
-        PatchObservationInput(version=1, addendum="It is blue."),
+        PatchObservationInput(addendum="It is blue."),
+    )
+    second_patch = repository.patch_observation(
+        "obs_001",
+        PatchObservationInput(addendum="It is still blue."),
     )
 
-    with pytest.raises(VersionConflictError) as excinfo:
-        repository.patch_observation(
-            "obs_001",
-            PatchObservationInput(version=1, addendum="It is still blue."),
-        )
-
-    assert excinfo.value.observation_id == "obs_001"
-    assert excinfo.value.current_version == 2
-    assert excinfo.value.requested_version == 1
+    assert first_patch.version == 2
+    assert second_patch.version == 3

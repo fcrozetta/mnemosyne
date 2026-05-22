@@ -22,19 +22,22 @@ from app.models.observations import (
     Source,
     SourceInput,
     SourceType,
-    VersionConflictError,
     append_addendum,
     content_preview,
     create_revision_id,
     generate_entity_id,
     generate_observation_id,
     generate_source_id,
+    merge_mentions,
+    related_overlap,
     score_content_match,
     utc_now,
 )
 from app.repository.observations import ObservationsRepository
 from app.storage.arcade import ArcadeRequestError, ArcadeStorageBackend
 from app.storage.bootstrap import StorageBootstrapResult
+
+_PATCH_RETRY_ATTEMPTS = 8
 
 
 @dataclass(slots=True)
@@ -61,7 +64,14 @@ class ArcadeObservationsRepository(ObservationsRepository):
         )
 
     def storage_initialized(self) -> bool:
-        return self.runtime.ready()
+        try:
+            if not self.runtime.ready() or not self.runtime.database_exists():
+                return False
+            self.runtime.query("SELECT FROM Observation LIMIT 1")
+            self.runtime.query("SELECT FROM Revision LIMIT 1")
+        except ArcadeRequestError:
+            return False
+        return True
 
     def create_observation(self, observation: CreateObservationInput) -> Observation:
         observed_at = observation.observed_at or utc_now()
@@ -91,16 +101,11 @@ class ArcadeObservationsRepository(ObservationsRepository):
         limit: int = 5,
     ) -> tuple[ObservationSearchResult, ...]:
         result = self.runtime.query(
-            (
-                "SELECT observation_id, observation_type, "
-                "out('CurrentRevision')[0].version AS version, "
-                "out('CurrentRevision')[0].content AS content, "
-                "out('CurrentRevision')[0].observed_at AS observed_at "
-                "FROM Observation WHERE "
-                "out('CurrentRevision')[0].content.toLowerCase() LIKE :query "
-                "LIMIT :limit"
-            ),
-            params={"query": f"%{query.casefold()}%", "limit": limit},
+            "SELECT observation_id, observation_type, "
+            "out('CurrentRevision')[0].version AS version, "
+            "out('CurrentRevision')[0].content AS content, "
+            "out('CurrentRevision')[0].observed_at AS observed_at "
+            "FROM Observation WHERE out('CurrentRevision')[0] IS NOT NULL"
         )
         matches: list[ObservationSearchResult] = []
         for row in _records(result):
@@ -118,7 +123,17 @@ class ArcadeObservationsRepository(ObservationsRepository):
                     score=score,
                 )
             )
-        return tuple(matches[:limit])
+        return tuple(
+            sorted(
+                matches,
+                key=lambda item: (
+                    item.score,
+                    item.observed_at.timestamp(),
+                    item.observation_id,
+                ),
+                reverse=True,
+            )[:limit]
+        )
 
     def patch_observation(
         self,
@@ -126,44 +141,48 @@ class ArcadeObservationsRepository(ObservationsRepository):
         patch: PatchObservationInput,
     ) -> Observation:
         current = self._get_observation(observation_id)
-        latest = current.latest_revision
-        if latest is None:
-            raise ObservationNotFoundError(observation_id)
-        if patch.version != latest.version:
-            raise VersionConflictError(
-                observation_id=observation_id,
-                current_version=latest.version,
-                requested_version=patch.version,
-            )
-        if patch.addendum is None and not patch.mentions and patch.observed_at is None:
-            raise InvalidObservationPatchError(
-                "Patch request must include at least one change."
-            )
+        last_error: ArcadeRequestError | None = None
 
-        next_version = latest.version + 1
-        observed_at = patch.observed_at or latest.observed_at
-        created_at = utc_now()
-        revision_id = create_revision_id(observation_id, next_version)
-        script, params = self._patch_observation_script(
-            current=current,
-            latest=latest,
-            patch=patch,
-            revision_id=revision_id,
-            next_version=next_version,
-            observed_at=observed_at,
-            created_at=created_at,
-        )
-        try:
-            self.runtime.command(script, language="sqlscript", params=params)
-        except ArcadeRequestError as exc:
-            if "current_version" in str(exc):
-                raise VersionConflictError(
-                    observation_id=observation_id,
-                    current_version=latest.version,
-                    requested_version=patch.version,
-                ) from exc
-            raise
-        return self._get_observation(observation_id)
+        for _attempt in range(_PATCH_RETRY_ATTEMPTS):
+            latest = current.latest_revision
+            if latest is None:
+                raise ObservationNotFoundError(observation_id)
+            if (
+                patch.addendum is None
+                and not patch.mentions
+                and patch.observed_at is None
+            ):
+                raise InvalidObservationPatchError(
+                    "Patch request must include at least one change."
+                )
+
+            next_version = latest.version + 1
+            observed_at = patch.observed_at or latest.observed_at
+            created_at = utc_now()
+            revision_id = create_revision_id(observation_id, next_version)
+            script, params = self._patch_observation_script(
+                current=current,
+                latest=latest,
+                patch=patch,
+                revision_id=revision_id,
+                next_version=next_version,
+                observed_at=observed_at,
+                created_at=created_at,
+            )
+            try:
+                self.runtime.command(script, language="sqlscript", params=params)
+            except ArcadeRequestError as exc:
+                last_error = exc
+                refreshed = self._get_observation(observation_id)
+                if refreshed.version > latest.version:
+                    current = refreshed
+                    continue
+                raise
+            return self._get_observation(observation_id)
+
+        if last_error is not None:
+            raise last_error
+        raise ObservationNotFoundError(observation_id)
 
     def get_observation_context(
         self,
@@ -171,7 +190,49 @@ class ArcadeObservationsRepository(ObservationsRepository):
         limit: int = 5,
     ) -> ObservationContext:
         observation = self._get_observation(observation_id)
-        return ObservationContext(observation=observation, related_observations=())
+        rows = _records(
+            self.runtime.query(
+                (
+                    "SELECT observation_id FROM Observation "
+                    "WHERE observation_id <> :observation_id"
+                ),
+                params={"observation_id": observation_id},
+            )
+        )
+        related: list[ObservationSearchResult] = []
+        for row in rows:
+            candidate_id = str(row["observation_id"])
+            candidate = self._get_observation(candidate_id)
+            latest = candidate.latest_revision
+            if latest is None:
+                continue
+            score = float(related_overlap(observation, candidate))
+            if score <= 0:
+                continue
+            related.append(
+                ObservationSearchResult(
+                    observation_id=candidate.observation_id,
+                    type=candidate.type,
+                    version=latest.version,
+                    content_preview=content_preview(latest.content),
+                    observed_at=latest.observed_at,
+                    score=score,
+                )
+            )
+        return ObservationContext(
+            observation=observation,
+            related_observations=tuple(
+                sorted(
+                    related,
+                    key=lambda item: (
+                        item.score,
+                        item.observed_at.timestamp(),
+                        item.observation_id,
+                    ),
+                    reverse=True,
+                )[:limit]
+            ),
+        )
 
     def _get_observation(self, observation_id: str) -> Observation:
         observation_rows = _records(
@@ -279,11 +340,12 @@ class ArcadeObservationsRepository(ObservationsRepository):
             ),
             "CREATE VERTEX Revision CONTENT :revision;",
             (
-                "UPDATE Source SET source_id = :source_id, "
+                "UPDATE Source SET source_id = ifnull(source_id, :source_id), "
                 "source_type = :source_type, label = :source_label, "
-                "source_ref = :source_ref, created_at = :created_at "
+                "source_ref = :source_ref, "
+                "created_at = ifnull(created_at, :created_at) "
                 "UPSERT WHERE source_type = :source_type "
-                "AND label = :source_label AND source_ref = :source_ref;"
+                "AND label <=> :source_label AND source_ref <=> :source_ref;"
             ),
         ]
         params: dict[str, object] = {
@@ -317,7 +379,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             "CREATE EDGE ObservedFrom FROM "
             "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
             "(SELECT FROM Source WHERE source_type = :source_type "
-            "AND label = :source_label AND source_ref = :source_ref) "
+            "AND label <=> :source_label AND source_ref <=> :source_ref) "
             "IF NOT EXISTS CONTENT :observed_from;"
         )
         params["observed_from"] = {
@@ -360,7 +422,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             (
                 "UPDATE Observation SET current_version = :next_version, "
                 "updated_at = :updated_at WHERE observation_id = :observation_id "
-                "AND current_version = :expected_version;"
+                ";"
             ),
             "CREATE VERTEX Revision CONTENT :revision;",
             _edge_has_revision(),
@@ -379,7 +441,6 @@ class ArcadeObservationsRepository(ObservationsRepository):
         ]
         params: dict[str, object] = {
             "observation_id": current.observation_id,
-            "expected_version": patch.version,
             "next_version": next_version,
             "updated_at": _datetime_value(created_at),
             "revision_id": revision_id,
@@ -394,16 +455,47 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 "created_at": _datetime_value(created_at),
             },
         }
-        for index, mention in enumerate(patch.mentions):
+        if latest.source is not None:
+            params.update(
+                {
+                    "source_id": latest.source.source_id,
+                    "observed_from": {
+                        "writer": None,
+                        "session_id": None,
+                        "observed_channel": None,
+                        "created_at": _datetime_value(created_at),
+                    },
+                }
+            )
+            lines.append(
+                "CREATE EDGE ObservedFrom FROM "
+                "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
+                "(SELECT FROM Source WHERE source_id = :source_id) "
+                "IF NOT EXISTS CONTENT :observed_from;"
+            )
+
+        merged_mentions = merge_mentions(
+            latest.mentions,
+            (
+                MentionedEntity(
+                    entity_id=self.entity_id_factory(),
+                    type=mention.type,
+                    label=mention.label,
+                    resolution_status=ResolutionStatus.UNRESOLVED,
+                )
+                for mention in patch.mentions
+            ),
+        )
+        for index, mention in enumerate(merged_mentions):
             lines.extend(
-                self._mention_sql(
+                self._mentioned_entity_sql(
                     mention,
                     index=index,
                     created_at=created_at,
                 )
             )
             params.update(
-                self._mention_params(
+                self._mentioned_entity_params(
                     mention,
                     index=index,
                     created_at=created_at,
@@ -423,10 +515,12 @@ class ArcadeObservationsRepository(ObservationsRepository):
         return (
             (
                 f"UPDATE {_entity_type(mention.type)} SET "
-                f"entity_id = :entity_id_{index}, entity_type = :entity_type_{index}, "
+                f"entity_id = ifnull(entity_id, :entity_id_{index}), "
+                f"entity_type = :entity_type_{index}, "
                 f"label = :entity_label_{index}, "
                 f"normalized_label = :normalized_label_{index}, "
-                f"resolution_status = 'unresolved', created_at = :created_at, "
+                f"resolution_status = 'unresolved', "
+                f"created_at = ifnull(created_at, :created_at), "
                 f"updated_at = :created_at UPSERT WHERE "
                 f"entity_type = :entity_type_{index} "
                 f"AND normalized_label = :normalized_label_{index};"
@@ -455,6 +549,56 @@ class ArcadeObservationsRepository(ObservationsRepository):
             f"mention_edge_{index}": {
                 "origin": mention.origin,
                 "confidence": mention.confidence,
+                "created_at": _datetime_value(created_at),
+            },
+        }
+
+    def _mentioned_entity_sql(
+        self,
+        mention: MentionedEntity,
+        *,
+        index: int,
+        created_at: datetime,
+    ) -> tuple[str, str]:
+        del created_at
+        return (
+            (
+                f"UPDATE {_entity_type(mention.type)} SET "
+                f"entity_id = ifnull(entity_id, :entity_id_{index}), "
+                f"entity_type = :entity_type_{index}, "
+                f"label = :entity_label_{index}, "
+                f"normalized_label = :normalized_label_{index}, "
+                f"resolution_status = :resolution_status_{index}, "
+                f"created_at = ifnull(created_at, :created_at), "
+                f"updated_at = :created_at UPSERT WHERE "
+                f"entity_type = :entity_type_{index} "
+                f"AND normalized_label = :normalized_label_{index};"
+            ),
+            (
+                "CREATE EDGE Mentions FROM "
+                "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
+                f"(SELECT FROM Entity WHERE entity_type = :entity_type_{index} "
+                f"AND normalized_label = :normalized_label_{index}) "
+                f"IF NOT EXISTS CONTENT :mention_edge_{index};"
+            ),
+        )
+
+    def _mentioned_entity_params(
+        self,
+        mention: MentionedEntity,
+        *,
+        index: int,
+        created_at: datetime,
+    ) -> dict[str, object]:
+        return {
+            f"entity_id_{index}": mention.entity_id,
+            f"entity_type_{index}": mention.type.value,
+            f"entity_label_{index}": mention.label,
+            f"normalized_label_{index}": mention.normalized_label,
+            f"resolution_status_{index}": mention.resolution_status.value,
+            f"mention_edge_{index}": {
+                "origin": "carried_forward",
+                "confidence": None,
                 "created_at": _datetime_value(created_at),
             },
         }

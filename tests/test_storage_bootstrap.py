@@ -54,6 +54,17 @@ def test_compose_base_starts_arcadedb_and_api() -> None:
     assert "SURREAL_" not in compose
 
 
+def test_compose_bootstrap_reads_container_environment() -> None:
+    compose = _compose()
+
+    assert "import os" in compose
+    assert 'base_url=os.environ["ARCADE_URL"]' in compose
+    assert 'database=os.environ["ARCADE_DATABASE"]' in compose
+    assert 'username=os.environ["ARCADE_USERNAME"]' in compose
+    assert 'password=os.environ["ARCADE_PASSWORD"]' in compose
+    assert 'base_url="${ARCADE_URL' not in compose
+
+
 def test_compose_dev_has_no_surreal_seed_import() -> None:
     compose_dev = _compose_dev()
 

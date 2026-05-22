@@ -80,7 +80,6 @@ def test_observations_create_get_patch_search_and_context_flow(
     patched = client.patch(
         f"/observations/{created_body['observation_id']}",
         json={
-            "version": 1,
             "addendum": "It is the blue one.",
             "mentions": [{"type": "location", "label": "John's place"}],
             "observed_at": "2026-04-06T18:05:00Z",
@@ -121,43 +120,33 @@ def test_observations_create_get_patch_search_and_context_flow(
     assert related_ids == [second.json()["observation_id"]]
 
 
-def test_observation_patch_returns_version_conflict_shape(monkeypatch) -> None:
+def test_observation_patch_rejects_empty_change(monkeypatch) -> None:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     client = _client()
     created = client.post(
         "/observations",
         json={"type": "note", "content": "Need to pick up my shirt."},
     ).json()
-    client.patch(
-        f"/observations/{created['observation_id']}",
-        json={"version": 1, "addendum": "It is blue."},
-    )
 
     response = client.patch(
         f"/observations/{created['observation_id']}",
-        json={"version": 1, "addendum": "It is still blue."},
+        json={},
     )
 
-    assert response.status_code == 409
+    assert response.status_code == 400
     assert response.json() == {
-        "error": "version_conflict",
+        "error": "invalid_observation_patch",
         "details": [
             {
-                "field": "version",
-                "message": "Version does not match latest observation version.",
-                "code": "version_conflict",
-                "context": {
-                    "observation_id": created["observation_id"],
-                    "current_version": 2,
-                    "requested_version": 1,
-                },
+                "message": "Patch request must include at least one change.",
+                "code": "invalid_observation_patch",
             }
         ],
         "request_id": None,
     }
 
 
-def test_observation_patch_rejects_boolean_version(monkeypatch) -> None:
+def test_observation_patch_rejects_client_version(monkeypatch) -> None:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     client = _client()
     created = client.post(
@@ -167,7 +156,7 @@ def test_observation_patch_rejects_boolean_version(monkeypatch) -> None:
 
     response = client.patch(
         f"/observations/{created['observation_id']}",
-        json={"version": True, "addendum": "It is blue."},
+        json={"version": 1, "addendum": "It is blue."},
     )
 
     assert response.status_code == 400
@@ -176,7 +165,26 @@ def test_observation_patch_rejects_boolean_version(monkeypatch) -> None:
         "details": [
             {
                 "field": "version",
-                "message": "version must be an integer greater than or equal to 1.",
+                "message": "version is assigned internally and must not be provided.",
+                "code": "invalid_observation_patch",
+            }
+        ],
+        "request_id": None,
+    }
+
+
+def test_observation_patch_missing_body_uses_patch_error(monkeypatch) -> None:
+    monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
+    client = _client()
+
+    response = client.patch("/observations/obs_missing")
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_observation_patch",
+        "details": [
+            {
+                "message": "Patch body is required.",
                 "code": "invalid_observation_patch",
             }
         ],

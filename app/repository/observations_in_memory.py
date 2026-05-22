@@ -17,7 +17,6 @@ from app.models.observations import (
     ResolutionStatus,
     Source,
     SourceInput,
-    VersionConflictError,
     append_addendum,
     content_preview,
     create_revision_id,
@@ -141,12 +140,6 @@ class InMemoryObservationsRepository(ObservationsRepository):
         latest = current.latest_revision
         if latest is None:
             raise ObservationNotFoundError(observation_id)
-        if patch.version != latest.version:
-            raise VersionConflictError(
-                observation_id=observation_id,
-                current_version=latest.version,
-                requested_version=patch.version,
-            )
         if patch.addendum is None and not patch.mentions and patch.observed_at is None:
             raise InvalidObservationPatchError(
                 "Patch request must include at least one change."

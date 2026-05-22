@@ -158,7 +158,6 @@ class CreateObservationInput:
 
 @dataclass(frozen=True, slots=True)
 class PatchObservationInput:
-    version: int
     addendum: str | None = None
     mentions: tuple[EntityMentionInput, ...] = ()
     observed_at: datetime | None = None
@@ -184,19 +183,6 @@ class ObservationNotFoundError(LookupError):
     def __init__(self, observation_id: str) -> None:
         super().__init__(f"Observation {observation_id!r} was not found.")
         self.observation_id = observation_id
-
-
-class VersionConflictError(RuntimeError):
-    def __init__(
-        self,
-        observation_id: str,
-        current_version: int,
-        requested_version: int,
-    ) -> None:
-        super().__init__(f"Version conflict for observation {observation_id!r}.")
-        self.observation_id = observation_id
-        self.current_version = current_version
-        self.requested_version = requested_version
 
 
 class InvalidObservationPatchError(ValueError):
@@ -326,7 +312,6 @@ __all__ = [
     "Source",
     "SourceInput",
     "SourceType",
-    "VersionConflictError",
     "append_addendum",
     "content_preview",
     "create_revision_id",
