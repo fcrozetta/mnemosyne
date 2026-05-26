@@ -264,6 +264,21 @@ def test_arcade_repository_create_observation_keeps_entity_identity_stable() -> 
     assert "entity_id = ifnull(entity_id, :entity_id_0)" in script
 
 
+def test_arcade_repository_serializes_datetime_in_arcadedb_format() -> None:
+    # Regression: ArcadeDB DATETIME columns silently drop SET assignments when
+    # given an ISO 8601 string with the `T` separator or `Z` suffix. Every
+    # write path through this repository must emit `yyyy-MM-dd HH:mm:ss`
+    # (always UTC) so Source/Revision/Entity rows actually persist their
+    # timestamps. Failure mode: created_at ends up null on every UPSERT and
+    # the response projection raises ValueError on read.
+    from app.repository.observations_arcade import _datetime_value
+
+    encoded = _datetime_value(datetime(2026, 4, 6, 17, 0, tzinfo=UTC))
+    assert encoded == "2026-04-06 17:00:00"
+    assert "T" not in encoded
+    assert "Z" not in encoded
+
+
 def test_arcade_repository_patch_observation_increments_version_internally() -> None:
     backend = _FakeArcadeBackend()
     repository = ArcadeObservationsRepository(
@@ -445,7 +460,7 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
             "It is still blue."
         ),
         "content_format": "text/plain",
-        "observed_at": "2026-04-06T18:00:00Z",
+        "observed_at": "2026-04-06 18:00:00",
         "created_at": revision_payload["created_at"],
     }
 
@@ -609,9 +624,7 @@ def test_arcade_repository_context_uses_related_observation_overlap() -> None:
 
     context = repository.get_observation_context("obs_001")
 
-    assert [item.observation_id for item in context.related_observations] == [
-        "obs_002"
-    ]
+    assert [item.observation_id for item in context.related_observations] == ["obs_002"]
     assert context.related_observations[0].score == 2.0
     query, params = backend.queries[0]
     assert "observation_id <> :observation_id" in query
