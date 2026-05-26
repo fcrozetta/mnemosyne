@@ -255,8 +255,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             )
         )
         revisions = tuple(
-            self._revision_from_row(revision_row)
-            for revision_row in revision_rows
+            self._revision_from_row(revision_row) for revision_row in revision_rows
         )
         return Observation(
             observation_id=str(row["observation_id"]),
@@ -663,7 +662,11 @@ def _datetime(value: object) -> datetime:
 
 
 def _datetime_value(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    # ArcadeDB DATETIME columns silently drop SET assignments when given an
+    # ISO 8601 string with a `T` separator or `Z` suffix. The accepted wire
+    # format is `yyyy-MM-dd HH:mm:ss` (always UTC, since this layer normalizes
+    # via .astimezone(UTC) first).
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _optional_str(value: object) -> str | None:
