@@ -101,11 +101,12 @@ class ArcadeObservationsRepository(ObservationsRepository):
         limit: int = 5,
     ) -> tuple[ObservationSearchResult, ...]:
         result = self.runtime.query(
-            "SELECT observation_id, observation_type, "
+            "SELECT id, observation_type, "
             "out('CurrentRevision')[0].version AS version, "
             "out('CurrentRevision')[0].content AS content, "
             "out('CurrentRevision')[0].observed_at AS observed_at "
-            "FROM Observation WHERE out('CurrentRevision')[0] IS NOT NULL"
+            "FROM Observation WHERE id IS NOT NULL "
+            "AND out('CurrentRevision')[0] IS NOT NULL"
         )
         matches: list[ObservationSearchResult] = []
         for row in _records(result):
@@ -115,7 +116,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 continue
             matches.append(
                 ObservationSearchResult(
-                    observation_id=str(row["observation_id"]),
+                    id=str(row["id"]),
                     type=ObservationType(str(row.get("observation_type", "note"))),
                     version=int(row["version"]),
                     content_preview=content_preview(content),
@@ -129,7 +130,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 key=lambda item: (
                     item.score,
                     item.observed_at.timestamp(),
-                    item.observation_id,
+                    item.id,
                 ),
                 reverse=True,
             )[:limit]
@@ -193,15 +194,15 @@ class ArcadeObservationsRepository(ObservationsRepository):
         rows = _records(
             self.runtime.query(
                 (
-                    "SELECT observation_id FROM Observation "
-                    "WHERE observation_id <> :observation_id"
+                    "SELECT id FROM Observation "
+                    "WHERE id IS NOT NULL AND id <> :observation_id"
                 ),
                 params={"observation_id": observation_id},
             )
         )
         related: list[ObservationSearchResult] = []
         for row in rows:
-            candidate_id = str(row["observation_id"])
+            candidate_id = str(row["id"])
             candidate = self._get_observation(candidate_id)
             latest = candidate.latest_revision
             if latest is None:
@@ -211,7 +212,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 continue
             related.append(
                 ObservationSearchResult(
-                    observation_id=candidate.observation_id,
+                    id=candidate.id,
                     type=candidate.type,
                     version=latest.version,
                     content_preview=content_preview(latest.content),
@@ -227,7 +228,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                     key=lambda item: (
                         item.score,
                         item.observed_at.timestamp(),
-                        item.observation_id,
+                        item.id,
                     ),
                     reverse=True,
                 )[:limit]
@@ -237,7 +238,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
     def _get_observation(self, observation_id: str) -> Observation:
         observation_rows = _records(
             self.runtime.query(
-                "SELECT FROM Observation WHERE observation_id = :observation_id",
+                "SELECT FROM Observation WHERE id = :observation_id",
                 params={"observation_id": observation_id},
             )
         )
@@ -248,7 +249,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
         revision_rows = _records(
             self.runtime.query(
                 (
-                    "SELECT FROM Revision WHERE observation_id = :observation_id "
+                    "SELECT FROM Revision WHERE observation = :observation_id "
                     "ORDER BY version ASC"
                 ),
                 params={"observation_id": observation_id},
@@ -258,7 +259,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             self._revision_from_row(revision_row) for revision_row in revision_rows
         )
         return Observation(
-            observation_id=str(row["observation_id"]),
+            id=str(row["id"]),
             type=ObservationType(str(row.get("observation_type", "note"))),
             created_at=_datetime(row["created_at"]),
             updated_at=_datetime(row["updated_at"]),
@@ -266,14 +267,14 @@ class ArcadeObservationsRepository(ObservationsRepository):
         )
 
     def _revision_from_row(self, row: dict[str, Any]) -> ObservationRevision:
-        revision_id = str(row["revision_id"])
+        revision_id = str(row["id"])
         mentions = tuple(
             self._entity_from_row(entity)
             for entity in _records(
                 self.runtime.query(
                     (
                         "SELECT expand(out('Mentions')) FROM Revision "
-                        "WHERE revision_id = :revision_id"
+                        "WHERE id = :revision_id"
                     ),
                     params={"revision_id": revision_id},
                 )
@@ -283,15 +284,15 @@ class ArcadeObservationsRepository(ObservationsRepository):
             self.runtime.query(
                 (
                     "SELECT expand(out('ObservedFrom')) FROM Revision "
-                    "WHERE revision_id = :revision_id"
+                    "WHERE id = :revision_id"
                 ),
                 params={"revision_id": revision_id},
             )
         )
         source = self._source_from_row(sources[0]) if sources else None
         return ObservationRevision(
-            revision_id=revision_id,
-            observation_id=str(row["observation_id"]),
+            id=revision_id,
+            observation=str(row["observation"]),
             version=int(row["version"]),
             content=str(row["content"]),
             content_format=str(row.get("content_format", "text/plain")),
@@ -303,7 +304,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
 
     def _entity_from_row(self, row: dict[str, Any]) -> MentionedEntity:
         return MentionedEntity(
-            entity_id=str(row["entity_id"]),
+            id=str(row["id"]),
             type=EntityType(str(row["entity_type"])),
             label=str(row["label"]),
             resolution_status=ResolutionStatus(
@@ -313,7 +314,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
 
     def _source_from_row(self, row: dict[str, Any]) -> Source:
         return Source(
-            source_id=str(row["source_id"]),
+            id=str(row["id"]),
             source_type=SourceType(str(row["source_type"])),
             label=_optional_str(row.get("label")),
             source_ref=_optional_str(row.get("source_ref")),
@@ -339,7 +340,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             ),
             "CREATE VERTEX Revision CONTENT :revision;",
             (
-                "UPDATE Source SET source_id = ifnull(source_id, :source_id), "
+                "UPDATE Source SET id = ifnull(id, :source_id), "
                 "source_type = :source_type, label = :source_label, "
                 "source_ref = :source_ref, "
                 "created_at = ifnull(created_at, :created_at) "
@@ -356,7 +357,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             "source_ref": source.source_ref,
             "created_at": _datetime_value(created_at),
             "observation": {
-                "observation_id": observation_id,
+                "id": observation_id,
                 "observation_type": observation.type.value,
                 "current_version": 1,
                 "created_at": _datetime_value(created_at),
@@ -364,8 +365,8 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 "lifecycle_status": "active",
             },
             "revision": {
-                "revision_id": revision_id,
-                "observation_id": observation_id,
+                "id": revision_id,
+                "observation": observation_id,
                 "version": 1,
                 "content": observation.content,
                 "content_format": observation.content_format,
@@ -376,7 +377,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
         lines.extend(_observation_revision_edges())
         lines.append(
             "CREATE EDGE ObservedFrom FROM "
-            "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
+            "(SELECT FROM Revision WHERE id = :revision_id) TO "
             "(SELECT FROM Source WHERE source_type = :source_type "
             "AND label <=> :source_label AND source_ref <=> :source_ref) "
             "IF NOT EXISTS CONTENT :observed_from;"
@@ -420,33 +421,33 @@ class ArcadeObservationsRepository(ObservationsRepository):
             "BEGIN;",
             (
                 "UPDATE Observation SET current_version = :next_version, "
-                "updated_at = :updated_at WHERE observation_id = :observation_id "
+                "updated_at = :updated_at WHERE id = :observation_id "
                 ";"
             ),
             "CREATE VERTEX Revision CONTENT :revision;",
             _edge_has_revision(),
             (
                 "CREATE EDGE PreviousRevision FROM "
-                "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
-                "(SELECT FROM Revision WHERE revision_id = :previous_revision_id) "
+                "(SELECT FROM Revision WHERE id = :revision_id) TO "
+                "(SELECT FROM Revision WHERE id = :previous_revision_id) "
                 "IF NOT EXISTS;"
             ),
             (
                 "DELETE FROM CurrentRevision WHERE "
                 "`@out` IN (SELECT FROM Observation "
-                "WHERE observation_id = :observation_id);"
+                "WHERE id = :observation_id);"
             ),
             _edge_current_revision(),
         ]
         params: dict[str, object] = {
-            "observation_id": current.observation_id,
+            "observation_id": current.id,
             "next_version": next_version,
             "updated_at": _datetime_value(created_at),
             "revision_id": revision_id,
-            "previous_revision_id": latest.revision_id,
+            "previous_revision_id": latest.id,
             "revision": {
-                "revision_id": revision_id,
-                "observation_id": current.observation_id,
+                "id": revision_id,
+                "observation": current.id,
                 "version": next_version,
                 "content": append_addendum(latest.content, patch.addendum),
                 "content_format": latest.content_format,
@@ -457,7 +458,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
         if latest.source is not None:
             params.update(
                 {
-                    "source_id": latest.source.source_id,
+                    "source_id": latest.source.id,
                     "observed_from": {
                         "writer": None,
                         "session_id": None,
@@ -468,8 +469,8 @@ class ArcadeObservationsRepository(ObservationsRepository):
             )
             lines.append(
                 "CREATE EDGE ObservedFrom FROM "
-                "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
-                "(SELECT FROM Source WHERE source_id = :source_id) "
+                "(SELECT FROM Revision WHERE id = :revision_id) TO "
+                "(SELECT FROM Source WHERE id = :source_id) "
                 "IF NOT EXISTS CONTENT :observed_from;"
             )
 
@@ -477,7 +478,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             latest.mentions,
             (
                 MentionedEntity(
-                    entity_id=self.entity_id_factory(),
+                    id=self.entity_id_factory(),
                     type=mention.type,
                     label=mention.label,
                     resolution_status=ResolutionStatus.UNRESOLVED,
@@ -514,7 +515,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
         return (
             (
                 f"UPDATE {_entity_type(mention.type)} SET "
-                f"entity_id = ifnull(entity_id, :entity_id_{index}), "
+                f"id = ifnull(id, :entity_id_{index}), "
                 f"entity_type = :entity_type_{index}, "
                 f"label = :entity_label_{index}, "
                 f"normalized_label = :normalized_label_{index}, "
@@ -526,7 +527,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             ),
             (
                 "CREATE EDGE Mentions FROM "
-                "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
+                "(SELECT FROM Revision WHERE id = :revision_id) TO "
                 f"(SELECT FROM Entity WHERE entity_type = :entity_type_{index} "
                 f"AND normalized_label = :normalized_label_{index}) "
                 f"IF NOT EXISTS CONTENT :mention_edge_{index};"
@@ -563,7 +564,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
         return (
             (
                 f"UPDATE {_entity_type(mention.type)} SET "
-                f"entity_id = ifnull(entity_id, :entity_id_{index}), "
+                f"id = ifnull(id, :entity_id_{index}), "
                 f"entity_type = :entity_type_{index}, "
                 f"label = :entity_label_{index}, "
                 f"normalized_label = :normalized_label_{index}, "
@@ -575,7 +576,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             ),
             (
                 "CREATE EDGE Mentions FROM "
-                "(SELECT FROM Revision WHERE revision_id = :revision_id) TO "
+                "(SELECT FROM Revision WHERE id = :revision_id) TO "
                 f"(SELECT FROM Entity WHERE entity_type = :entity_type_{index} "
                 f"AND normalized_label = :normalized_label_{index}) "
                 f"IF NOT EXISTS CONTENT :mention_edge_{index};"
@@ -590,7 +591,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
         created_at: datetime,
     ) -> dict[str, object]:
         return {
-            f"entity_id_{index}": mention.entity_id,
+            f"entity_id_{index}": mention.id,
             f"entity_type_{index}": mention.type.value,
             f"entity_label_{index}": mention.label,
             f"normalized_label_{index}": mention.normalized_label,
@@ -610,16 +611,16 @@ def _observation_revision_edges() -> tuple[str, str]:
 def _edge_has_revision() -> str:
     return (
         "CREATE EDGE HasRevision FROM "
-        "(SELECT FROM Observation WHERE observation_id = :observation_id) TO "
-        "(SELECT FROM Revision WHERE revision_id = :revision_id) IF NOT EXISTS;"
+        "(SELECT FROM Observation WHERE id = :observation_id) TO "
+        "(SELECT FROM Revision WHERE id = :revision_id) IF NOT EXISTS;"
     )
 
 
 def _edge_current_revision() -> str:
     return (
         "CREATE EDGE CurrentRevision FROM "
-        "(SELECT FROM Observation WHERE observation_id = :observation_id) TO "
-        "(SELECT FROM Revision WHERE revision_id = :revision_id) IF NOT EXISTS;"
+        "(SELECT FROM Observation WHERE id = :observation_id) TO "
+        "(SELECT FROM Revision WHERE id = :revision_id) IF NOT EXISTS;"
     )
 
 

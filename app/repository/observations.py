@@ -22,7 +22,7 @@ class ObservationsRepository(Protocol):
     def create_observation(self, observation: CreateObservationInput) -> Observation:
         ...
 
-    def get_observation(self, observation_id: str) -> Observation: ...
+    def get_observation(self, id: str) -> Observation: ...
 
     def search_observations(
         self,
@@ -32,13 +32,13 @@ class ObservationsRepository(Protocol):
 
     def patch_observation(
         self,
-        observation_id: str,
+        id: str,
         patch: PatchObservationInput,
     ) -> Observation: ...
 
     def get_observation_context(
         self,
-        observation_id: str,
+        id: str,
         limit: int = 5,
     ) -> ObservationContext: ...
 

@@ -46,7 +46,8 @@ class ArcadeStorageBackend:
         return True
 
     def apply_schema(self, schema: str) -> None:
-        self.command(schema, language="sqlscript")
+        for statement in _schema_statements(schema):
+            self.command(statement, language="sqlscript")
 
     def apply_default_schema(self) -> None:
         self.apply_schema(DEFAULT_SCHEMA_PATH.read_text())
@@ -125,6 +126,23 @@ class ArcadeStorageBackend:
     def _authorization_header(self) -> str:
         token = f"{self.username}:{self.password}".encode()
         return f"Basic {base64.b64encode(token).decode()}"
+
+
+def _schema_statements(schema: str) -> tuple[str, ...]:
+    statements: list[str] = []
+    current: list[str] = []
+    for char in schema:
+        current.append(char)
+        if char == ";":
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+
+    trailing = "".join(current).strip()
+    if trailing:
+        statements.append(trailing)
+    return tuple(statements)
 
 
 __all__ = [

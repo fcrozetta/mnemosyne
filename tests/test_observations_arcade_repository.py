@@ -75,7 +75,7 @@ def test_arcade_repository_search_uses_current_revision_and_observation_type() -
                 return {
                     "result": [
                         {
-                            "observation_id": "obs_001",
+                            "id": "obs_001",
                             "observation_type": "document",
                             "version": 2,
                             "content": "The blue shirt is at John's place.",
@@ -86,13 +86,13 @@ def test_arcade_repository_search_uses_current_revision_and_observation_type() -
             return {
                 "result": [
                     {
-                        "observation_id": "obs_001",
+                        "id": "obs_001",
                         "version": 1,
                         "content": "The blue shirt is missing.",
                         "observed_at": "2026-04-06T17:00:00Z",
                     },
                     {
-                        "observation_id": "obs_001",
+                        "id": "obs_001",
                         "version": 2,
                         "content": "The blue shirt is at John's place.",
                         "observed_at": "2026-04-06T18:05:00Z",
@@ -105,7 +105,7 @@ def test_arcade_repository_search_uses_current_revision_and_observation_type() -
 
     results = repository.search_observations("shirt", limit=5)
 
-    assert [(item.observation_id, item.type, item.version) for item in results] == [
+    assert [(item.id, item.type, item.version) for item in results] == [
         ("obs_001", ObservationType.DOCUMENT, 2)
     ]
     query, params = backend.queries[0]
@@ -133,14 +133,14 @@ def test_arcade_search_scores_loaded_current_revisions() -> None:
             return {
                 "result": [
                     {
-                        "observation_id": "obs_001",
+                        "id": "obs_001",
                         "observation_type": "note",
                         "version": 1,
                         "content": "Blue shirt is at John's place.",
                         "observed_at": "2026-04-06T17:00:00Z",
                     },
                     {
-                        "observation_id": "obs_002",
+                        "id": "obs_002",
                         "observation_type": "note",
                         "version": 1,
                         "content": "Blue mug is in the kitchen.",
@@ -154,7 +154,7 @@ def test_arcade_search_scores_loaded_current_revisions() -> None:
 
     results = repository.search_observations("shirt blue", limit=5)
 
-    assert [(item.observation_id, item.score) for item in results] == [
+    assert [(item.id, item.score) for item in results] == [
         ("obs_001", 1.0),
         ("obs_002", 0.5),
     ]
@@ -172,14 +172,14 @@ def test_arcade_repository_create_observation_writes_truth_graph() -> None:
         source_id_factory=lambda: "src_001",
     )
     expected = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         updated_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         revisions=(
             ObservationRevision(
-                revision_id="obs_001:v1",
-                observation_id="obs_001",
+                id="obs_001:v1",
+                observation="obs_001",
                 version=1,
                 content="Need to pick up my shirt.",
                 content_format="text/plain",
@@ -238,7 +238,7 @@ def test_arcade_repository_create_observation_keeps_source_identity_stable() -> 
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
     )
 
-    assert "source_id = ifnull(source_id, :source_id)" in script
+    assert "id = ifnull(id, :source_id)" in script
     assert "label <=> :source_label" in script
     assert "source_ref <=> :source_ref" in script
 
@@ -261,7 +261,7 @@ def test_arcade_repository_create_observation_keeps_entity_identity_stable() -> 
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
     )
 
-    assert "entity_id = ifnull(entity_id, :entity_id_0)" in script
+    assert "id = ifnull(id, :entity_id_0)" in script
 
 
 def test_arcade_repository_serializes_datetime_in_arcadedb_format() -> None:
@@ -286,14 +286,14 @@ def test_arcade_repository_patch_observation_increments_version_internally() -> 
         entity_id_factory=lambda: "ent_001",
     )
     current = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         updated_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         revisions=(
             ObservationRevision(
-                revision_id="obs_001:v1",
-                observation_id="obs_001",
+                id="obs_001:v1",
+                observation="obs_001",
                 version=1,
                 content="Need to pick up my shirt.",
                 content_format="text/plain",
@@ -303,15 +303,15 @@ def test_arcade_repository_patch_observation_increments_version_internally() -> 
         ),
     )
     updated = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=current.created_at,
         updated_at=datetime(2026, 4, 6, 18, 5, tzinfo=UTC),
         revisions=(
             *current.revisions,
             ObservationRevision(
-                revision_id="obs_001:v2",
-                observation_id="obs_001",
+                id="obs_001:v2",
+                observation="obs_001",
                 version=2,
                 content="Need to pick up my shirt.\n\nAddendum:\nIt is blue.",
                 content_format="text/plain",
@@ -336,13 +336,13 @@ def test_arcade_repository_patch_observation_increments_version_internally() -> 
     assert language == "sqlscript"
     assert "LOCK TYPE" not in script
     assert "RETURN AFTER" not in script
-    assert "WHERE observation_id = :observation_id" in script
+    assert "WHERE id = :observation_id" in script
     assert "expected_version" not in script
     assert "CREATE VERTEX Revision CONTENT" in script
     assert "CREATE EDGE PreviousRevision" in script
     assert "DELETE FROM CurrentRevision" in script
     assert (
-        "`@out` IN (SELECT FROM Observation WHERE observation_id = :observation_id)"
+        "`@out` IN (SELECT FROM Observation WHERE id = :observation_id)"
         in script
     )
     assert "CREATE EDGE CurrentRevision" in script
@@ -369,14 +369,14 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
     backend = _ConflictingPatchBackend()
     repository = ArcadeObservationsRepository(runtime=backend)
     current = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         updated_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         revisions=(
             ObservationRevision(
-                revision_id="obs_001:v1",
-                observation_id="obs_001",
+                id="obs_001:v1",
+                observation="obs_001",
                 version=1,
                 content="Need to pick up my shirt.",
                 content_format="text/plain",
@@ -386,15 +386,15 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
         ),
     )
     externally_patched = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=current.created_at,
         updated_at=datetime(2026, 4, 6, 18, 0, tzinfo=UTC),
         revisions=(
             *current.revisions,
             ObservationRevision(
-                revision_id="obs_001:v2",
-                observation_id="obs_001",
+                id="obs_001:v2",
+                observation="obs_001",
                 version=2,
                 content="Need to pick up my shirt.\n\nAddendum:\nIt is blue.",
                 content_format="text/plain",
@@ -404,15 +404,15 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
         ),
     )
     updated = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=current.created_at,
         updated_at=datetime(2026, 4, 6, 18, 5, tzinfo=UTC),
         revisions=(
             *externally_patched.revisions,
             ObservationRevision(
-                revision_id="obs_001:v3",
-                observation_id="obs_001",
+                id="obs_001:v3",
+                observation="obs_001",
                 version=3,
                 content=(
                     "Need to pick up my shirt.\n\n"
@@ -449,8 +449,8 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
     assert isinstance(revision_payload, dict)
     assert isinstance(revision_payload["created_at"], str)
     assert revision_payload == {
-        "revision_id": "obs_001:v3",
-        "observation_id": "obs_001",
+        "id": "obs_001:v3",
+        "observation": "obs_001",
         "version": 3,
         "content": (
             "Need to pick up my shirt.\n\n"
@@ -472,21 +472,21 @@ def test_arcade_patch_carries_current_source_and_mentions() -> None:
         entity_id_factory=lambda: "ent_001",
     )
     source = Source(
-        source_id="src_codex",
+        id="src_codex",
         source_type=SourceType.AGENT,
         label="codex",
         source_ref=None,
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
     )
     current = Observation(
-        observation_id="obs_001",
+        id="obs_001",
         type=ObservationType.NOTE,
         created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         updated_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
         revisions=(
             ObservationRevision(
-                revision_id="obs_001:v1",
-                observation_id="obs_001",
+                id="obs_001:v1",
+                observation="obs_001",
                 version=1,
                 content="Need to pick up my shirt.",
                 content_format="text/plain",
@@ -494,7 +494,7 @@ def test_arcade_patch_carries_current_source_and_mentions() -> None:
                 created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
                 mentions=(
                     MentionedEntity(
-                        entity_id="ent_shirt",
+                        id="ent_shirt",
                         type=EntityType.ITEM,
                         label="blue shirt",
                         resolution_status=ResolutionStatus.UNRESOLVED,
@@ -544,19 +544,19 @@ def test_arcade_repository_context_uses_related_observation_overlap() -> None:
             self.queries.append((query, params))
             return {
                 "result": [
-                    {"observation_id": "obs_002"},
-                    {"observation_id": "obs_003"},
+                    {"id": "obs_002"},
+                    {"id": "obs_003"},
                 ]
             }
 
     blue_shirt = MentionedEntity(
-        entity_id="ent_shirt",
+        id="ent_shirt",
         type=EntityType.ITEM,
         label="blue shirt",
         resolution_status=ResolutionStatus.UNRESOLVED,
     )
     place = MentionedEntity(
-        entity_id="ent_place",
+        id="ent_place",
         type=EntityType.LOCATION,
         label="John's place",
         resolution_status=ResolutionStatus.UNRESOLVED,
@@ -564,14 +564,14 @@ def test_arcade_repository_context_uses_related_observation_overlap() -> None:
     now = datetime(2026, 4, 6, 17, 0, tzinfo=UTC)
     observations = {
         "obs_001": Observation(
-            observation_id="obs_001",
+            id="obs_001",
             type=ObservationType.NOTE,
             created_at=now,
             updated_at=now,
             revisions=(
                 ObservationRevision(
-                    revision_id="obs_001:v1",
-                    observation_id="obs_001",
+                    id="obs_001:v1",
+                    observation="obs_001",
                     version=1,
                     content="Need to pick up my shirt.",
                     content_format="text/plain",
@@ -582,14 +582,14 @@ def test_arcade_repository_context_uses_related_observation_overlap() -> None:
             ),
         ),
         "obs_002": Observation(
-            observation_id="obs_002",
+            id="obs_002",
             type=ObservationType.NOTE,
             created_at=now,
             updated_at=now,
             revisions=(
                 ObservationRevision(
-                    revision_id="obs_002:v1",
-                    observation_id="obs_002",
+                    id="obs_002:v1",
+                    observation="obs_002",
                     version=1,
                     content="Blue shirt is at John's place.",
                     content_format="text/plain",
@@ -600,14 +600,14 @@ def test_arcade_repository_context_uses_related_observation_overlap() -> None:
             ),
         ),
         "obs_003": Observation(
-            observation_id="obs_003",
+            id="obs_003",
             type=ObservationType.NOTE,
             created_at=now,
             updated_at=now,
             revisions=(
                 ObservationRevision(
-                    revision_id="obs_003:v1",
-                    observation_id="obs_003",
+                    id="obs_003:v1",
+                    observation="obs_003",
                     version=1,
                     content="Coffee mug is in the kitchen.",
                     content_format="text/plain",
@@ -624,10 +624,10 @@ def test_arcade_repository_context_uses_related_observation_overlap() -> None:
 
     context = repository.get_observation_context("obs_001")
 
-    assert [item.observation_id for item in context.related_observations] == ["obs_002"]
+    assert [item.id for item in context.related_observations] == ["obs_002"]
     assert context.related_observations[0].score == 2.0
     query, params = backend.queries[0]
-    assert "observation_id <> :observation_id" in query
+    assert "id <> :observation_id" in query
     assert params == {"observation_id": "obs_001"}
 
 

@@ -28,14 +28,14 @@ def test_entity_labels_normalize_for_lookup() -> None:
 def test_observation_latest_revision_returns_highest_version() -> None:
     created_at = datetime(2026, 5, 22, 12, 0, tzinfo=UTC)
     observation = Observation(
-        observation_id="obs_01ABC",
+        id="obs_01ABC",
         type=ObservationType.NOTE,
         created_at=created_at,
         updated_at=created_at,
         revisions=(
             ObservationRevision(
-                revision_id="obs_01ABC:v1",
-                observation_id="obs_01ABC",
+                id="obs_01ABC:v1",
+                observation="obs_01ABC",
                 version=1,
                 content="one",
                 content_format="text/plain",
@@ -43,8 +43,8 @@ def test_observation_latest_revision_returns_highest_version() -> None:
                 created_at=created_at,
             ),
             ObservationRevision(
-                revision_id="obs_01ABC:v2",
-                observation_id="obs_01ABC",
+                id="obs_01ABC:v2",
+                observation="obs_01ABC",
                 version=2,
                 content="two",
                 content_format="text/plain",

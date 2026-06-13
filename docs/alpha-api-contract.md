@@ -11,7 +11,7 @@ See also:
 
 - `Observation` is the public write/read object.
 - `Note` is one observation type.
-- Public identity is `observation_id`.
+- Public identity is `id`.
 - Public `version` identifies the latest revision returned by reads; patch
   requests do not supply a version.
 - Mentions are evidence navigation, not truth claims.
@@ -60,10 +60,10 @@ Response `201`:
 
 ```json
 {
-  "observation_id": "obs_01...",
+  "id": "obs_01...",
   "type": "note",
   "version": 1,
-  "current_revision_id": "obs_01...:v1",
+  "current_revision": "obs_01...:v1",
   "content": "My blue shirt is at John's place.",
   "content_format": "text/plain",
   "observed_at": "2026-04-06T17:00:00Z",
@@ -71,14 +71,14 @@ Response `201`:
   "updated_at": "2026-04-06T17:00:00Z",
   "mentions": [
     {
-      "entity_id": "ent_01...",
+      "id": "ent_01...",
       "type": "item",
       "label": "blue shirt",
       "resolution_status": "unresolved"
     }
   ],
   "source": {
-    "source_id": "src_01...",
+    "id": "src_01...",
     "source_type": "agent",
     "label": "codex",
     "source_ref": null
@@ -95,7 +95,7 @@ Response `200`:
 ```json
 [
   {
-    "observation_id": "obs_01...",
+    "id": "obs_01...",
     "type": "note",
     "version": 1,
     "content_preview": "My blue shirt is at John's place.",
@@ -107,13 +107,13 @@ Response `200`:
 
 ## Get Observation
 
-`GET /observations/{observation_id}`
+`GET /observations/{id}`
 
 Returns the latest observation revision projection.
 
 ## Patch Observation
 
-`PATCH /observations/{observation_id}`
+`PATCH /observations/{id}`
 
 ```json
 {
@@ -130,7 +130,7 @@ The next revision version is assigned internally.
 
 ## Context
 
-`GET /observations/{observation_id}/context`
+`GET /observations/{id}/context`
 
 Returns the latest observation plus related observations found by mention
 overlap.

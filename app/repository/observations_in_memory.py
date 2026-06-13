@@ -69,8 +69,8 @@ class InMemoryObservationsRepository(ObservationsRepository):
         created_at = observed_at
         observation_id = self.observation_id_factory()
         revision = ObservationRevision(
-            revision_id=create_revision_id(observation_id, 1),
-            observation_id=observation_id,
+            id=create_revision_id(observation_id, 1),
+            observation=observation_id,
             version=1,
             content=observation.content,
             content_format=observation.content_format,
@@ -80,7 +80,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
             source=self._resolve_source(observation.source, created_at),
         )
         created = Observation(
-            observation_id=observation_id,
+            id=observation_id,
             type=observation.type,
             created_at=created_at,
             updated_at=created_at,
@@ -89,11 +89,11 @@ class InMemoryObservationsRepository(ObservationsRepository):
         self.observations[observation_id] = created
         return created
 
-    def get_observation(self, observation_id: str) -> Observation:
+    def get_observation(self, id: str) -> Observation:
         try:
-            return self.observations[observation_id]
+            return self.observations[id]
         except KeyError as exc:
-            raise ObservationNotFoundError(observation_id) from exc
+            raise ObservationNotFoundError(id) from exc
 
     def search_observations(
         self,
@@ -110,7 +110,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                 continue
             matches.append(
                 ObservationSearchResult(
-                    observation_id=observation.observation_id,
+                    id=observation.id,
                     type=observation.type,
                     version=latest.version,
                     content_preview=content_preview(latest.content),
@@ -125,7 +125,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                 key=lambda item: (
                     item.score,
                     item.observed_at.timestamp(),
-                    item.observation_id,
+                    item.id,
                 ),
                 reverse=True,
             )[:limit]
@@ -150,8 +150,8 @@ class InMemoryObservationsRepository(ObservationsRepository):
         created_at = utc_now()
         added_mentions = self._resolve_mentions(patch.mentions)
         revision = ObservationRevision(
-            revision_id=create_revision_id(observation_id, next_version),
-            observation_id=observation_id,
+            id=create_revision_id(observation_id, next_version),
+            observation=observation_id,
             version=next_version,
             content=append_addendum(latest.content, patch.addendum),
             content_format=latest.content_format,
@@ -161,7 +161,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
             source=latest.source,
         )
         updated = Observation(
-            observation_id=current.observation_id,
+            id=current.id,
             type=current.type,
             created_at=current.created_at,
             updated_at=created_at,
@@ -173,13 +173,13 @@ class InMemoryObservationsRepository(ObservationsRepository):
 
     def get_observation_context(
         self,
-        observation_id: str,
+        id: str,
         limit: int = 5,
     ) -> ObservationContext:
-        anchor = self.get_observation(observation_id)
+        anchor = self.get_observation(id)
         related: list[ObservationSearchResult] = []
         for observation in self.observations.values():
-            if observation.observation_id == observation_id:
+            if observation.id == id:
                 continue
             latest = observation.latest_revision
             if latest is None:
@@ -189,7 +189,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                 continue
             related.append(
                 ObservationSearchResult(
-                    observation_id=observation.observation_id,
+                    id=observation.id,
                     type=observation.type,
                     version=latest.version,
                     content_preview=content_preview(latest.content),
@@ -206,7 +206,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                     key=lambda item: (
                         item.score,
                         item.observed_at.timestamp(),
-                        item.observation_id,
+                        item.id,
                     ),
                     reverse=True,
                 )[:limit]
@@ -222,7 +222,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
             existing = self.entities_by_identity.get(mention.identity)
             if existing is None:
                 existing = MentionedEntity(
-                    entity_id=self.entity_id_factory(),
+                    id=self.entity_id_factory(),
                     type=mention.type,
                     label=mention.label,
                     resolution_status=ResolutionStatus.UNRESOLVED,
@@ -241,7 +241,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
         if existing is not None:
             return existing
         created = Source(
-            source_id=self.source_id_factory(),
+            id=self.source_id_factory(),
             source_type=source_input.source_type,
             label=source_input.label,
             source_ref=source_input.source_ref,

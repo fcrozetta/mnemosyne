@@ -43,14 +43,14 @@ def test_create_patch_search_and_context_flow() -> None:
         )
     )
 
-    assert created.observation_id == "obs_001"
+    assert created.id == "obs_001"
     assert created.type == ObservationType.NOTE
     assert created.version == 1
     assert created.latest_revision is not None
-    assert created.latest_revision.revision_id == "obs_001:v1"
+    assert created.latest_revision.id == "obs_001:v1"
     assert created.latest_revision.source is not None
-    assert created.latest_revision.source.source_id == "src_codex"
-    assert [mention.entity_id for mention in created.latest_revision.mentions] == [
+    assert created.latest_revision.source.id == "src_codex"
+    assert [mention.id for mention in created.latest_revision.mentions] == [
         "ent_shirt",
         "ent_place",
     ]
@@ -67,9 +67,9 @@ def test_create_patch_search_and_context_flow() -> None:
             source=SourceInput(source_type=SourceType.AGENT, label="codex"),
         )
     )
-    assert second.observation_id == "obs_002"
+    assert second.id == "obs_002"
     assert second.latest_revision is not None
-    assert [mention.entity_id for mention in second.latest_revision.mentions] == [
+    assert [mention.id for mention in second.latest_revision.mentions] == [
         "ent_shirt",
         "ent_place",
     ]
@@ -87,7 +87,7 @@ def test_create_patch_search_and_context_flow() -> None:
 
     assert patched.version == 2
     assert patched.latest_revision is not None
-    assert patched.latest_revision.revision_id == "obs_001:v2"
+    assert patched.latest_revision.id == "obs_001:v2"
     assert patched.latest_revision.content == (
         "Need to pick up my shirt.\n\nAddendum:\nIt is the blue one."
     )
@@ -105,14 +105,14 @@ def test_create_patch_search_and_context_flow() -> None:
     ]
 
     search = repository.search_observations("blue", limit=5)
-    assert [(item.observation_id, item.version, item.score) for item in search] == [
+    assert [(item.id, item.version, item.score) for item in search] == [
         ("obs_001", 2, 1.0),
         ("obs_002", 1, 1.0),
     ]
 
     context = repository.get_observation_context("obs_001")
-    assert context.observation.observation_id == "obs_001"
-    assert [item.observation_id for item in context.related_observations] == [
+    assert context.observation.id == "obs_001"
+    assert [item.id for item in context.related_observations] == [
         "obs_002"
     ]
     assert context.related_observations[0].score == 2.0
