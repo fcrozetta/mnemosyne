@@ -115,7 +115,7 @@ Base vertex for information that enters the system.
 
 Properties:
 
-- `observation_id`: prefixed ULID-style ID, `obs_...`
+- `id`: prefixed ULID-style ID, `obs_...`
 - `created_at`
 - `updated_at`
 - `lifecycle_status`: `active`, `archived`, `deleted`
@@ -140,8 +140,8 @@ Immutable version of an observation.
 
 Properties:
 
-- `revision_id`: derived ID, for example `obs_...:v2`
-- `observation_id`
+- `id`: derived ID, for example `obs_...:v2`
+- `observation`
 - `version`
 - `content`
 - `content_format`: initially `text/plain`
@@ -158,7 +158,7 @@ Base vertex for durable world objects.
 
 Properties:
 
-- `entity_id`: prefixed ULID-style ID, `ent_...`
+- `id`: prefixed ULID-style ID, `ent_...`
 - `label`
 - `normalized_label`
 - `resolution_status`: `unresolved`, `resolved`, `merged`, `archived`
@@ -184,7 +184,7 @@ One knowledge candidate.
 
 Properties:
 
-- `claim_id`: prefixed ULID-style ID, `clm_...`
+- `id`: prefixed ULID-style ID, `clm_...`
 - `statement`
 - `status`: `proposed`, `accepted`, `rejected`, `superseded`
 - `confidence`
@@ -203,7 +203,7 @@ Reusable provenance origin.
 
 Properties:
 
-- `source_id`: prefixed ULID-style ID, `src_...`
+- `id`: prefixed ULID-style ID, `src_...`
 - `source_type`: `user`, `agent`, `import`, `integration`, `system`
 - `label`
 - `source_ref`
@@ -329,16 +329,16 @@ Return:
 
 ```json
 {
-  "observation_id": "obs_01...",
+  "id": "obs_01...",
   "type": "note",
   "version": 1,
-  "current_revision_id": "obs_01...:v1"
+  "current_revision": "obs_01...:v1"
 }
 ```
 
 API rules:
 
-- public identity is `observation_id`, not `note_id`
+- public identity is `id` on observation resources; `/notes`/`note_id` remain out of scope
 - returned version maps to `Revision.version`; patch requests do not supply it
 - content maps to `Revision.content`
 - supplied mentions create `MENTIONS` edges, not truth claims

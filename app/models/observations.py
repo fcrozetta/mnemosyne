@@ -71,7 +71,7 @@ class EntityMentionInput:
 
 @dataclass(frozen=True, slots=True)
 class MentionedEntity:
-    entity_id: str
+    id: str
     type: EntityType
     label: str
     resolution_status: ResolutionStatus = ResolutionStatus.UNRESOLVED
@@ -101,7 +101,7 @@ class SourceInput:
 
 @dataclass(frozen=True, slots=True)
 class Source:
-    source_id: str
+    id: str
     source_type: SourceType
     label: str | None
     source_ref: str | None
@@ -114,8 +114,8 @@ class Source:
 
 @dataclass(frozen=True, slots=True)
 class ObservationRevision:
-    revision_id: str
-    observation_id: str
+    id: str
+    observation: str
     version: int
     content: str
     content_format: str
@@ -127,7 +127,7 @@ class ObservationRevision:
 
 @dataclass(frozen=True, slots=True)
 class Observation:
-    observation_id: str
+    id: str
     type: ObservationType
     created_at: datetime
     updated_at: datetime
@@ -165,7 +165,7 @@ class PatchObservationInput:
 
 @dataclass(frozen=True, slots=True)
 class ObservationSearchResult:
-    observation_id: str
+    id: str
     type: ObservationType
     version: int
     content_preview: str
@@ -180,9 +180,9 @@ class ObservationContext:
 
 
 class ObservationNotFoundError(LookupError):
-    def __init__(self, observation_id: str) -> None:
-        super().__init__(f"Observation {observation_id!r} was not found.")
-        self.observation_id = observation_id
+    def __init__(self, id: str) -> None:
+        super().__init__(f"Observation {id!r} was not found.")
+        self.id = id
 
 
 class InvalidObservationPatchError(ValueError):

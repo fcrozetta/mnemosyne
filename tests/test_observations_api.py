@@ -33,23 +33,23 @@ def test_observations_create_get_patch_search_and_context_flow(
 
     assert created.status_code == 201
     created_body = created.json()
-    assert re.fullmatch(r"obs_[0-9A-Z]{26}", created_body["observation_id"])
+    assert re.fullmatch(r"obs_[0-9A-Z]{26}", created_body["id"])
     assert created_body["type"] == "note"
     assert created_body["version"] == 1
-    assert created_body["current_revision_id"] == (
-        f"{created_body['observation_id']}:v1"
+    assert created_body["current_revision"] == (
+        f"{created_body['id']}:v1"
     )
     assert created_body["content"] == "Need to pick up my shirt."
     assert created_body["observed_at"] == "2026-04-06T17:00:00Z"
     assert created_body["mentions"] == [
         {
-            "entity_id": created_body["mentions"][0]["entity_id"],
+            "id": created_body["mentions"][0]["id"],
             "type": "item",
             "label": "blue shirt",
             "resolution_status": "unresolved",
         },
         {
-            "entity_id": created_body["mentions"][1]["entity_id"],
+            "id": created_body["mentions"][1]["id"],
             "type": "location",
             "label": "John's place",
             "resolution_status": "unresolved",
@@ -58,7 +58,7 @@ def test_observations_create_get_patch_search_and_context_flow(
     assert created_body["source"]["source_type"] == "agent"
     assert created_body["source"]["label"] == "codex"
 
-    fetched = client.get(f"/observations/{created_body['observation_id']}")
+    fetched = client.get(f"/observations/{created_body['id']}")
     assert fetched.status_code == 200
     assert fetched.json() == created_body
 
@@ -78,7 +78,7 @@ def test_observations_create_get_patch_search_and_context_flow(
     assert second.status_code == 201
 
     patched = client.patch(
-        f"/observations/{created_body['observation_id']}",
+        f"/observations/{created_body['id']}",
         json={
             "addendum": "It is the blue one.",
             "mentions": [{"type": "location", "label": "John's place"}],
@@ -93,8 +93,8 @@ def test_observations_create_get_patch_search_and_context_flow(
         "Need to pick up my shirt.\n\nAddendum:\nIt is the blue one."
     )
     assert patched_body["observed_at"] == "2026-04-06T18:05:00Z"
-    assert patched_body["current_revision_id"] == (
-        f"{created_body['observation_id']}:v2"
+    assert patched_body["current_revision"] == (
+        f"{created_body['id']}:v2"
     )
     assert [(item["type"], item["label"]) for item in patched_body["mentions"]] == [
         ("item", "blue shirt"),
@@ -103,21 +103,21 @@ def test_observations_create_get_patch_search_and_context_flow(
 
     search = client.get("/observations", params={"q": "blue", "limit": 5})
     assert search.status_code == 200
-    assert [(item["observation_id"], item["version"]) for item in search.json()] == [
-        (created_body["observation_id"], 2),
-        (second.json()["observation_id"], 1),
+    assert [(item["id"], item["version"]) for item in search.json()] == [
+        (created_body["id"], 2),
+        (second.json()["id"], 1),
     ]
 
-    context = client.get(f"/observations/{created_body['observation_id']}/context")
+    context = client.get(f"/observations/{created_body['id']}/context")
     assert context.status_code == 200
-    assert context.json()["observation"]["observation_id"] == (
-        created_body["observation_id"]
+    assert context.json()["observation"]["id"] == (
+        created_body["id"]
     )
     related_ids = [
-        item["observation_id"]
+        item["id"]
         for item in context.json()["related_observations"]
     ]
-    assert related_ids == [second.json()["observation_id"]]
+    assert related_ids == [second.json()["id"]]
 
 
 def test_observation_patch_rejects_empty_change(monkeypatch) -> None:
@@ -129,7 +129,7 @@ def test_observation_patch_rejects_empty_change(monkeypatch) -> None:
     ).json()
 
     response = client.patch(
-        f"/observations/{created['observation_id']}",
+        f"/observations/{created['id']}",
         json={},
     )
 
@@ -155,7 +155,7 @@ def test_observation_patch_rejects_client_version(monkeypatch) -> None:
     ).json()
 
     response = client.patch(
-        f"/observations/{created['observation_id']}",
+        f"/observations/{created['id']}",
         json={"version": 1, "addendum": "It is blue."},
     )
 

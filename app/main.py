@@ -40,10 +40,10 @@ def create_app() -> FastAPI:
             status_code=status.HTTP_404_NOT_FOUND,
             content=_error_response(
                 error="observation_not_found",
-                field="observation_id",
+                field="id",
                 message="Observation was not found.",
                 code="observation_not_found",
-                context={"observation_id": exc.observation_id},
+                context={"id": exc.id},
             ),
         )
 
@@ -162,19 +162,19 @@ def create_app() -> FastAPI:
             for result in service.search_observations(q, limit=limit)
         ]
 
-    @app.get("/observations/{observation_id}")
+    @app.get("/observations/{id}")
     def get_observation(
-        observation_id: str,
+        id: str,
         service: Annotated[
             ObservationsService,
             Depends(get_observations_service),
         ],
     ) -> dict[str, Any]:
-        return _serialize_observation(service.get_observation(observation_id))
+        return _serialize_observation(service.get_observation(id))
 
-    @app.patch("/observations/{observation_id}")
+    @app.patch("/observations/{id}")
     def patch_observation(
-        observation_id: str,
+        id: str,
         service: Annotated[
             ObservationsService,
             Depends(get_observations_service),
@@ -183,21 +183,21 @@ def create_app() -> FastAPI:
     ) -> dict[str, Any]:
         return _serialize_observation(
             service.patch_observation(
-                observation_id,
+                id,
                 _parse_patch_observation_input(body),
             )
         )
 
-    @app.get("/observations/{observation_id}/context")
+    @app.get("/observations/{id}/context")
     def get_observation_context(
-        observation_id: str,
+        id: str,
         service: Annotated[
             ObservationsService,
             Depends(get_observations_service),
         ],
     ) -> dict[str, Any]:
         return _serialize_observation_context(
-            service.get_observation_context(observation_id)
+            service.get_observation_context(id)
         )
 
     return app
@@ -463,12 +463,12 @@ def _parse_optional_datetime(
 def _serialize_observation(observation: Observation) -> dict[str, Any]:
     latest = observation.latest_revision
     if latest is None:
-        raise ObservationNotFoundError(observation.observation_id)
+        raise ObservationNotFoundError(observation.id)
     return {
-        "observation_id": observation.observation_id,
+        "id": observation.id,
         "type": observation.type.value,
         "version": latest.version,
-        "current_revision_id": latest.revision_id,
+        "current_revision": latest.id,
         "content": latest.content,
         "content_format": latest.content_format,
         "observed_at": _format_datetime(latest.observed_at),
@@ -481,7 +481,7 @@ def _serialize_observation(observation: Observation) -> dict[str, Any]:
 
 def _serialize_mention(mention: MentionedEntity) -> dict[str, Any]:
     return {
-        "entity_id": mention.entity_id,
+        "id": mention.id,
         "type": mention.type.value,
         "label": mention.label,
         "resolution_status": mention.resolution_status.value,
@@ -492,7 +492,7 @@ def _serialize_source(source: Source | None) -> dict[str, Any] | None:
     if source is None:
         return None
     return {
-        "source_id": source.source_id,
+        "id": source.id,
         "source_type": source.source_type.value,
         "label": source.label,
         "source_ref": source.source_ref,
@@ -501,7 +501,7 @@ def _serialize_source(source: Source | None) -> dict[str, Any] | None:
 
 def _serialize_search_result(result: ObservationSearchResult) -> dict[str, Any]:
     return {
-        "observation_id": result.observation_id,
+        "id": result.id,
         "type": result.type.value,
         "version": result.version,
         "content_preview": result.content_preview,

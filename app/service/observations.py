@@ -31,8 +31,8 @@ class ObservationsService:
     ) -> Observation:
         return self.repository.create_observation(observation)
 
-    def get_observation(self, observation_id: str) -> Observation:
-        return self.repository.get_observation(observation_id)
+    def get_observation(self, id: str) -> Observation:
+        return self.repository.get_observation(id)
 
     def search_observations(
         self,
@@ -43,17 +43,17 @@ class ObservationsService:
 
     def patch_observation(
         self,
-        observation_id: str,
+        id: str,
         patch: PatchObservationInput,
     ) -> Observation:
-        return self.repository.patch_observation(observation_id, patch)
+        return self.repository.patch_observation(id, patch)
 
     def get_observation_context(
         self,
-        observation_id: str,
+        id: str,
         limit: int = 5,
     ) -> ObservationContext:
-        return self.repository.get_observation_context(observation_id, limit=limit)
+        return self.repository.get_observation_context(id, limit=limit)
 
 
 __all__ = ["ObservationsService"]
