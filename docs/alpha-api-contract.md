@@ -96,7 +96,7 @@ Response `201`:
 `GET /observations?q=shirt&limit=5`
 
 Search evaluates only the latest/current revision content for each observation.
-The current alpha ranking is lexical-only:
+The current alpha scoring model is lexical-only:
 
 - `q` is stripped and casefolded before matching.
 - Content is casefolded before matching.
@@ -104,12 +104,13 @@ The current alpha ranking is lexical-only:
 - Otherwise, the query is split on whitespace and `score` is the fraction of
   query terms that appear in the content.
 - Results with `score = 0` are omitted.
-- Returned results sort by `score`, then `observed_at`, then `id`, all
-  descending.
+- Returned results sort by observation `updated_at`, then `id`, both
+  descending. `score` is returned for lexical relevance insight, but it does
+  not override recency ordering.
 
 Scores are query-relative relevance signals in the range `(0, 1]` for returned
-rows. They are useful for ordering one result set, but are not globally
-calibrated across different queries. There is no stemming, BM25/TF-IDF,
+rows. They are useful inside one result set, but are not globally calibrated
+across different queries. There is no stemming, BM25/TF-IDF,
 embedding similarity, or hybrid reranking in the current implementation.
 Stronger indexes are planned; when semantic/vector or hybrid ranking lands,
 this contract should grow an explicit ranking mode and updated score semantics.
@@ -124,6 +125,7 @@ Response `200`:
     "version": 1,
     "content_preview": "My blue shirt is at John's place.",
     "observed_at": "2026-04-06T17:00:00Z",
+    "updated_at": "2026-04-06T17:00:00Z",
     "score": 1.0
   }
 ]
@@ -137,7 +139,8 @@ Returns recent current versions of note observations whose current revision
 mentions a topic matching `{topic}`. The topic path segment may be a full topic
 label or a partial substring, so `coding:fcrozetta:python` matches
 `coding:fcrozetta:python:coding-style` and
-`coding:fcrozetta:python:linting`.
+`coding:fcrozetta:python:linting`. Results sort by observation `updated_at`,
+then `id`, both descending.
 
 Response `200`:
 
@@ -149,6 +152,7 @@ Response `200`:
     "version": 2,
     "content_preview": "Prefer pathlib for local file handling.",
     "observed_at": "2026-04-08T10:00:00Z",
+    "updated_at": "2026-04-08T10:30:00Z",
     "score": 1.0
   }
 ]

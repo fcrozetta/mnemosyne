@@ -165,7 +165,7 @@ def test_observations_support_topic_strings_and_recent_topic_lookup(
         f"/observations/{second.json()['id']}",
         json={
             "addendum": "This is the current version.",
-            "observed_at": "2026-04-08T10:00:00Z",
+            "observed_at": "2026-04-04T10:00:00Z",
         },
     )
     assert patched.status_code == 200
@@ -180,6 +180,10 @@ def test_observations_support_topic_strings_and_recent_topic_lookup(
         (second.json()["id"], 2),
         (first.json()["id"], 1),
     ]
+    assert [item["updated_at"] for item in recent.json()] == sorted(
+        [item["updated_at"] for item in recent.json()],
+        reverse=True,
+    )
 
     partial = client.get("/topics/coding-style/observations")
 
@@ -187,6 +191,55 @@ def test_observations_support_topic_strings_and_recent_topic_lookup(
     assert [(item["id"], item["version"]) for item in partial.json()] == [
         (first.json()["id"], 1)
     ]
+
+
+def test_observations_search_orders_by_updated_at_desc(monkeypatch) -> None:
+    monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
+    client = _client()
+
+    older_higher_score = client.post(
+        "/observations",
+        json={
+            "type": "note",
+            "content": "Cerulean saxifrage marker is stored in the closet.",
+            "observed_at": "2026-04-10T10:00:00Z",
+        },
+    )
+    newer_lower_score = client.post(
+        "/observations",
+        json={
+            "type": "note",
+            "content": "Cerulean marker is in the laundry basket.",
+            "observed_at": "2026-04-05T10:00:00Z",
+        },
+    )
+    patched = client.patch(
+        f"/observations/{newer_lower_score.json()['id']}",
+        json={
+            "addendum": "Still cerulean.",
+            "observed_at": "2026-04-04T10:00:00Z",
+        },
+    )
+
+    assert older_higher_score.status_code == 201
+    assert newer_lower_score.status_code == 201
+    assert patched.status_code == 200
+
+    response = client.get(
+        "/observations",
+        params={"q": "cerulean saxifrage", "limit": 5},
+    )
+
+    assert response.status_code == 200
+    results = response.json()
+    assert [(item["id"], item["version"], item["score"]) for item in results] == [
+        (newer_lower_score.json()["id"], 2, 0.5),
+        (older_higher_score.json()["id"], 1, 1.0),
+    ]
+    assert [item["updated_at"] for item in results] == sorted(
+        [item["updated_at"] for item in results],
+        reverse=True,
+    )
 
 
 def test_observation_patch_rejects_empty_change(monkeypatch) -> None:
@@ -270,7 +323,7 @@ def test_notes_endpoint_is_not_part_of_the_alpha_observation_api(monkeypatch) ->
     assert response.status_code == 404
 
 
-def test_observations_search_openapi_documents_ranking_semantics() -> None:
+def test_observations_search_openapi_documents_scoring_semantics() -> None:
     client = _client()
 
     response = client.get("/openapi.json")
@@ -279,6 +332,7 @@ def test_observations_search_openapi_documents_ranking_semantics() -> None:
     description = response.json()["paths"]["/observations"]["get"][
         "description"
     ]
-    assert "lexical ranking" in description
+    assert "lexical scoring" in description
     assert "full-query substring match scores `1.0`" in description
-    assert "Scores are query-relative" in description
+    assert "matches sort by `updated_at` descending" in description
+    assert "query-relative" in description

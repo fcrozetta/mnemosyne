@@ -70,11 +70,12 @@ Search current observation revisions:
 curl -sS 'http://127.0.0.1:8180/observations?q=blue%20shirt&limit=5'
 ```
 
-Search ranking is lexical-only in the current alpha. The server strips and
+Search scoring is lexical-only in the current alpha. The server strips and
 casefolds `q`, matches it against each observation's latest revision content,
 and returns only matches with `score > 0`. A full-query substring match scores
 `1.0`; otherwise the score is the fraction of whitespace-separated query terms
-present in the content. Results sort by `score`, then `observed_at`, then `id`,
-all descending. Scores are relative to one query result set, not calibrated
-across different queries. Stemming, BM25/TF-IDF, embeddings, and hybrid
-reranking are not active yet; stronger indexes are planned.
+present in the content. Results sort by observation `updated_at`, then `id`,
+both descending; `score` does not override recency ordering. Scores are relative
+to one query result set, not calibrated across different queries. Stemming,
+BM25/TF-IDF, embeddings, and hybrid reranking are not active yet; stronger
+indexes are planned.

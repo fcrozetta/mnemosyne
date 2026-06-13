@@ -170,6 +170,7 @@ class ObservationSearchResult:
     version: int
     content_preview: str
     observed_at: datetime
+    updated_at: datetime
     score: float
 
 
