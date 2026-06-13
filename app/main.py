@@ -145,6 +145,15 @@ def create_app() -> FastAPI:
         q: str = "",
         limit: int = 5,
     ) -> list[dict[str, Any]]:
+        """Search current observation revisions with lexical ranking.
+
+        `q` is stripped and casefolded, then matched against the casefolded
+        latest revision content. A full-query substring match scores `1.0`;
+        otherwise the query is split on whitespace and the score is the
+        fraction of query terms present in the content. Results with score
+        `0` are omitted and matches sort by score, `observed_at`, then `id`,
+        all descending. Scores are query-relative, not globally calibrated.
+        """
         if not q.strip():
             raise InvalidObservationRequestError(
                 error="invalid_observation_request",

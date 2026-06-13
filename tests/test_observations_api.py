@@ -268,3 +268,17 @@ def test_notes_endpoint_is_not_part_of_the_alpha_observation_api(monkeypatch) ->
     response = client.post("/notes", json={"content": "legacy"})
 
     assert response.status_code == 404
+
+
+def test_observations_search_openapi_documents_ranking_semantics() -> None:
+    client = _client()
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    description = response.json()["paths"]["/observations"]["get"][
+        "description"
+    ]
+    assert "lexical ranking" in description
+    assert "full-query substring match scores `1.0`" in description
+    assert "Scores are query-relative" in description
