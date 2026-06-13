@@ -178,6 +178,10 @@ example, a `location` label-only input creates or reuses a `Location` with
 `resolution_status = "unresolved"`. `UnknownEntity` is for truly unknown
 categories and public `other` input.
 
+`Topic.normalized_label` is indexed for topic-specific lookup. Agents may use
+colon-separated topic labels such as `coding:fcrozetta:python:coding-style`;
+read endpoints support partial topic label matching.
+
 ### Claim
 
 One knowledge candidate.
@@ -318,6 +322,7 @@ POST /observations
     { "type": "item", "label": "blue shirt" },
     { "type": "location", "label": "John's place" }
   ],
+  "topics": ["personal:clothing:location"],
   "source": {
     "source_type": "agent",
     "label": "codex"
@@ -342,6 +347,8 @@ API rules:
 - returned version maps to `Revision.version`; patch requests do not supply it
 - content maps to `Revision.content`
 - supplied mentions create `MENTIONS` edges, not truth claims
+- supplied `topics` create `topic` mentions and can be read through
+  `GET /topics/{topic}/observations?limit=5`, with partial topic label matching
 - optional agent-derived claims create `Claim` vertices supported by the revision
 - `/notes` is not part of the core design; it can be added later as a
   convenience alias only if real usage proves it useful

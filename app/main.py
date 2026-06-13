@@ -162,6 +162,32 @@ def create_app() -> FastAPI:
             for result in service.search_observations(q, limit=limit)
         ]
 
+    @app.get("/topics/{topic}/observations")
+    def recent_observations_by_topic(
+        topic: str,
+        service: Annotated[
+            ObservationsService,
+            Depends(get_observations_service),
+        ],
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        if not topic.strip():
+            raise InvalidObservationRequestError(
+                error="invalid_observation_request",
+                field="topic",
+                message="Topic path parameter must be non-empty.",
+            )
+        if not 1 <= limit <= 50:
+            raise InvalidObservationRequestError(
+                error="invalid_observation_request",
+                field="limit",
+                message="Limit must be between 1 and 50.",
+            )
+        return [
+            _serialize_search_result(result)
+            for result in service.recent_observations_by_topic(topic, limit=limit)
+        ]
+
     @app.get("/observations/{id}")
     def get_observation(
         id: str,
@@ -218,10 +244,17 @@ def _parse_create_observation_input(body: Any) -> CreateObservationInput:
     return CreateObservationInput(
         type=observation_type,
         content=content,
-        mentions=_parse_mentions(
-            data.get("mentions", ()),
-            error="invalid_observation_request",
-            field="mentions",
+        mentions=(
+            *_parse_mentions(
+                data.get("mentions", ()),
+                error="invalid_observation_request",
+                field="mentions",
+            ),
+            *_parse_topics(
+                data.get("topics", ()),
+                error="invalid_observation_request",
+                field="topics",
+            ),
         ),
         observed_at=_parse_optional_datetime(
             data.get("observed_at"),
@@ -259,10 +292,17 @@ def _parse_patch_observation_input(body: Any) -> PatchObservationInput:
                 field="addendum",
                 message="addendum must be non-empty.",
             )
-    mentions = _parse_mentions(
-        data.get("mentions", ()),
-        error="invalid_observation_patch",
-        field="mentions",
+    mentions = (
+        *_parse_mentions(
+            data.get("mentions", ()),
+            error="invalid_observation_patch",
+            field="mentions",
+        ),
+        *_parse_topics(
+            data.get("topics", ()),
+            error="invalid_observation_patch",
+            field="topics",
+        ),
     )
     observed_at = _parse_optional_datetime(
         data.get("observed_at"),
@@ -337,6 +377,33 @@ def _parse_mentions(
             message=f"{field} must be a list.",
         )
     return tuple(_parse_mention(item, error=error, field=field) for item in value)
+
+
+def _parse_topics(
+    value: Any,
+    *,
+    error: str,
+    field: str,
+) -> tuple[EntityMentionInput, ...]:
+    if value in (None, ()):
+        return ()
+    if not isinstance(value, list):
+        raise InvalidObservationRequestError(
+            error=error,
+            field=field,
+            message=f"{field} must be a list.",
+        )
+
+    topics: list[EntityMentionInput] = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            raise InvalidObservationRequestError(
+                error=error,
+                field=field,
+                message="Each topic must be a non-empty string.",
+            )
+        topics.append(EntityMentionInput(type=EntityType.TOPIC, label=item.strip()))
+    return tuple(topics)
 
 
 def _parse_mention(

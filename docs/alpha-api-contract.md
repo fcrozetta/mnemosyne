@@ -48,6 +48,7 @@ If storage is not usable, the endpoint returns `503` with both values false.
     { "type": "item", "label": "blue shirt" },
     { "type": "location", "label": "John's place" }
   ],
+  "topics": ["personal:clothing:location"],
   "observed_at": "2026-04-06T17:00:00Z",
   "source": {
     "source_type": "agent",
@@ -55,6 +56,10 @@ If storage is not usable, the endpoint returns `503` with both values false.
   }
 }
 ```
+
+`topics` is shorthand for topic mentions. Each string creates or reuses a
+`topic` entity with the string as its label. Agents may use colon-separated
+hierarchical topic names, for example `coding:fcrozetta:python:coding-style`.
 
 Response `201`:
 
@@ -100,6 +105,31 @@ Response `200`:
     "version": 1,
     "content_preview": "My blue shirt is at John's place.",
     "observed_at": "2026-04-06T17:00:00Z",
+    "score": 1.0
+  }
+]
+```
+
+## Recent Observations by Topic
+
+`GET /topics/{topic}/observations?limit=5`
+
+Returns recent current versions of note observations whose current revision
+mentions a topic matching `{topic}`. The topic path segment may be a full topic
+label or a partial substring, so `coding:fcrozetta:python` matches
+`coding:fcrozetta:python:coding-style` and
+`coding:fcrozetta:python:linting`.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "obs_01...",
+    "type": "note",
+    "version": 2,
+    "content_preview": "Prefer pathlib for local file handling.",
+    "observed_at": "2026-04-08T10:00:00Z",
     "score": 1.0
   }
 ]

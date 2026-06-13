@@ -29,8 +29,10 @@ from app.models.observations import (
     generate_observation_id,
     generate_source_id,
     merge_mentions,
+    normalize_label,
     related_overlap,
     score_content_match,
+    topic_matches,
     utc_now,
 )
 from app.repository.observations import ObservationsRepository
@@ -129,6 +131,65 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 matches,
                 key=lambda item: (
                     item.score,
+                    item.observed_at.timestamp(),
+                    item.id,
+                ),
+                reverse=True,
+            )[:limit]
+        )
+
+    def recent_observations_by_topic(
+        self,
+        topic: str,
+        limit: int = 5,
+    ) -> tuple[ObservationSearchResult, ...]:
+        normalized_topic = normalize_label(topic)
+        if not normalized_topic:
+            return ()
+
+        topic_rows = _records(
+            self.runtime.query(
+                (
+                    "SELECT id, normalized_label FROM Topic "
+                    "WHERE normalized_label LIKE :topic_pattern"
+                ),
+                params={"topic_pattern": f"%{normalized_topic}%"},
+            )
+        )
+        matches: dict[str, ObservationSearchResult] = {}
+        for topic_row in topic_rows:
+            topic_id = _optional_str(topic_row.get("id"))
+            if topic_id is None:
+                continue
+            revision_rows = _records(
+                self.runtime.query(
+                    "SELECT expand(in('Mentions')) FROM Topic WHERE id = :topic_id",
+                    params={"topic_id": topic_id},
+                )
+            )
+            for revision_row in revision_rows:
+                observation_id = _optional_str(revision_row.get("observation"))
+                if observation_id is None or observation_id in matches:
+                    continue
+                observation = self._get_observation(observation_id)
+                if observation.type != ObservationType.NOTE:
+                    continue
+                latest = observation.latest_revision
+                if latest is None or not _revision_mentions_topic(latest, topic):
+                    continue
+                matches[observation.id] = ObservationSearchResult(
+                    id=observation.id,
+                    type=observation.type,
+                    version=latest.version,
+                    content_preview=content_preview(latest.content),
+                    observed_at=latest.observed_at,
+                    score=1.0,
+                )
+
+        return tuple(
+            sorted(
+                matches.values(),
+                key=lambda item: (
                     item.observed_at.timestamp(),
                     item.id,
                 ),
@@ -674,6 +735,13 @@ def _optional_str(value: object) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _revision_mentions_topic(revision: ObservationRevision, topic: str) -> bool:
+    return any(
+        mention.type == EntityType.TOPIC and topic_matches(mention.label, topic)
+        for mention in revision.mentions
+    )
 
 
 __all__ = ["ArcadeObservationsRepository"]

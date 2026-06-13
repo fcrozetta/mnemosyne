@@ -74,6 +74,7 @@ def test_arcadedb_schema_defines_domain_id_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ON Entity (entity_type, normalized_label) UNIQUE;"
         in schema
     )
+    assert "CREATE INDEX IF NOT EXISTS ON Topic (normalized_label) UNIQUE;" in schema
     assert (
         "CREATE INDEX IF NOT EXISTS ON Source (source_type, label, source_ref) "
         "UNIQUE NULL_STRATEGY INDEX;"

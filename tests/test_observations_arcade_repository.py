@@ -163,6 +163,123 @@ def test_arcade_search_scores_loaded_current_revisions() -> None:
     assert params is None
 
 
+def test_arcade_recent_by_topic_uses_index_and_latest_notes() -> None:
+    class _TopicBackend(_FakeArcadeBackend):
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries: list[tuple[str, dict[str, object] | None]] = []
+
+        def query(
+            self,
+            query: str,
+            *,
+            language: str = "sql",
+            params: dict[str, object] | None = None,
+        ) -> object:
+            del language
+            self.queries.append((query, params))
+            if "FROM Topic" in query and "normalized_label LIKE" in query:
+                return {
+                    "result": [
+                        {
+                            "id": "ent_style",
+                            "normalized_label": "coding:fcrozetta:python:coding-style",
+                        },
+                        {
+                            "id": "ent_lint",
+                            "normalized_label": "coding:fcrozetta:python:linting",
+                        },
+                    ]
+                }
+            if "expand(in('Mentions'))" in query:
+                if params == {"topic_id": "ent_style"}:
+                    return {"result": [{"id": "obs_001:v1", "observation": "obs_001"}]}
+                if params == {"topic_id": "ent_lint"}:
+                    return {"result": [{"id": "obs_002:v2", "observation": "obs_002"}]}
+            return {"result": []}
+
+    style_topic = MentionedEntity(
+        id="ent_style",
+        type=EntityType.TOPIC,
+        label="coding:fcrozetta:python:coding-style",
+        resolution_status=ResolutionStatus.UNRESOLVED,
+    )
+    lint_topic = MentionedEntity(
+        id="ent_lint",
+        type=EntityType.TOPIC,
+        label="coding:fcrozetta:python:linting",
+        resolution_status=ResolutionStatus.UNRESOLVED,
+    )
+    observations = {
+        "obs_001": Observation(
+            id="obs_001",
+            type=ObservationType.NOTE,
+            created_at=datetime(2026, 4, 6, 10, 0, tzinfo=UTC),
+            updated_at=datetime(2026, 4, 6, 10, 0, tzinfo=UTC),
+            revisions=(
+                ObservationRevision(
+                    id="obs_001:v1",
+                    observation="obs_001",
+                    version=1,
+                    content="Prefer pathlib for local file handling.",
+                    content_format="text/plain",
+                    observed_at=datetime(2026, 4, 6, 10, 0, tzinfo=UTC),
+                    created_at=datetime(2026, 4, 6, 10, 0, tzinfo=UTC),
+                    mentions=(style_topic,),
+                ),
+            ),
+        ),
+        "obs_002": Observation(
+            id="obs_002",
+            type=ObservationType.NOTE,
+            created_at=datetime(2026, 4, 5, 10, 0, tzinfo=UTC),
+            updated_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
+            revisions=(
+                ObservationRevision(
+                    id="obs_002:v1",
+                    observation="obs_002",
+                    version=1,
+                    content="Ruff should keep imports sorted.",
+                    content_format="text/plain",
+                    observed_at=datetime(2026, 4, 5, 10, 0, tzinfo=UTC),
+                    created_at=datetime(2026, 4, 5, 10, 0, tzinfo=UTC),
+                    mentions=(lint_topic,),
+                ),
+                ObservationRevision(
+                    id="obs_002:v2",
+                    observation="obs_002",
+                    version=2,
+                    content=(
+                        "Ruff should keep imports sorted.\n\n"
+                        "Addendum:\nThis is the current version."
+                    ),
+                    content_format="text/plain",
+                    observed_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
+                    created_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
+                    mentions=(lint_topic,),
+                ),
+            ),
+        ),
+    }
+    backend = _TopicBackend()
+    repository = ArcadeObservationsRepository(runtime=backend)
+    repository._get_observation = lambda observation_id: observations[observation_id]  # type: ignore[method-assign]
+
+    recent = repository.recent_observations_by_topic(
+        "coding:fcrozetta:python",
+        limit=5,
+    )
+
+    assert [(item.id, item.version) for item in recent] == [
+        ("obs_002", 2),
+        ("obs_001", 1),
+    ]
+    topic_query, topic_params = backend.queries[0]
+    assert "FROM Topic" in topic_query
+    assert "normalized_label LIKE :topic_pattern" in topic_query
+    assert topic_params == {"topic_pattern": "%coding:fcrozetta:python%"}
+
+
 def test_arcade_repository_create_observation_writes_truth_graph() -> None:
     backend = _FakeArcadeBackend()
     repository = ArcadeObservationsRepository(

@@ -120,6 +120,75 @@ def test_observations_create_get_patch_search_and_context_flow(
     assert related_ids == [second.json()["id"]]
 
 
+def test_observations_support_topic_strings_and_recent_topic_lookup(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
+    client = _client()
+
+    first = client.post(
+        "/observations",
+        json={
+            "type": "note",
+            "content": "Prefer pathlib for local file handling.",
+            "topics": ["coding:fcrozetta:python:coding-style"],
+            "observed_at": "2026-04-06T10:00:00Z",
+        },
+    )
+    second = client.post(
+        "/observations",
+        json={
+            "type": "note",
+            "content": "Ruff should keep imports sorted.",
+            "topics": ["coding:fcrozetta:python:linting"],
+            "observed_at": "2026-04-05T10:00:00Z",
+        },
+    )
+    unrelated = client.post(
+        "/observations",
+        json={
+            "type": "note",
+            "content": "ArcadeDB schema changes need smoke tests.",
+            "topics": ["coding:fcrozetta:arcadedb:schema"],
+            "observed_at": "2026-04-07T10:00:00Z",
+        },
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert unrelated.status_code == 201
+    assert [(item["type"], item["label"]) for item in first.json()["mentions"]] == [
+        ("topic", "coding:fcrozetta:python:coding-style")
+    ]
+
+    patched = client.patch(
+        f"/observations/{second.json()['id']}",
+        json={
+            "addendum": "This is the current version.",
+            "observed_at": "2026-04-08T10:00:00Z",
+        },
+    )
+    assert patched.status_code == 200
+
+    recent = client.get(
+        "/topics/coding:fcrozetta:python/observations",
+        params={"limit": 5},
+    )
+
+    assert recent.status_code == 200
+    assert [(item["id"], item["version"]) for item in recent.json()] == [
+        (second.json()["id"], 2),
+        (first.json()["id"], 1),
+    ]
+
+    partial = client.get("/topics/coding-style/observations")
+
+    assert partial.status_code == 200
+    assert [(item["id"], item["version"]) for item in partial.json()] == [
+        (first.json()["id"], 1)
+    ]
+
+
 def test_observation_patch_rejects_empty_change(monkeypatch) -> None:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     client = _client()

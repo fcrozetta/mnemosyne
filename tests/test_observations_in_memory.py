@@ -118,6 +118,78 @@ def test_create_patch_search_and_context_flow() -> None:
     assert context.related_observations[0].score == 2.0
 
 
+def test_recent_by_topic_matches_partial_topic_and_latest_versions() -> None:
+    observation_ids = _ids("obs_001", "obs_002", "obs_003")
+    entity_ids = _ids("ent_style", "ent_lint", "ent_schema")
+    repository = InMemoryObservationsRepository(
+        observation_id_factory=lambda: next(observation_ids),
+        entity_id_factory=lambda: next(entity_ids),
+        source_id_factory=lambda: "src_unused",
+    )
+    repository.initialize_storage()
+
+    first = repository.create_observation(
+        CreateObservationInput(
+            type=ObservationType.NOTE,
+            content="Prefer pathlib for local file handling.",
+            mentions=(
+                EntityMentionInput(
+                    type=EntityType.TOPIC,
+                    label="coding:fcrozetta:python:coding-style",
+                ),
+            ),
+            observed_at=datetime(2026, 4, 6, 10, 0, tzinfo=UTC),
+        )
+    )
+    second = repository.create_observation(
+        CreateObservationInput(
+            type=ObservationType.NOTE,
+            content="Ruff should keep imports sorted.",
+            mentions=(
+                EntityMentionInput(
+                    type=EntityType.TOPIC,
+                    label="coding:fcrozetta:python:linting",
+                ),
+            ),
+            observed_at=datetime(2026, 4, 5, 10, 0, tzinfo=UTC),
+        )
+    )
+    repository.create_observation(
+        CreateObservationInput(
+            type=ObservationType.NOTE,
+            content="ArcadeDB schema changes need smoke tests.",
+            mentions=(
+                EntityMentionInput(
+                    type=EntityType.TOPIC,
+                    label="coding:fcrozetta:arcadedb:schema",
+                ),
+            ),
+            observed_at=datetime(2026, 4, 7, 10, 0, tzinfo=UTC),
+        )
+    )
+    repository.patch_observation(
+        second.id,
+        PatchObservationInput(
+            addendum="This is the current version.",
+            observed_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
+        ),
+    )
+
+    recent = repository.recent_observations_by_topic(
+        "coding:fcrozetta:python",
+        limit=5,
+    )
+
+    assert [(item.id, item.version) for item in recent] == [
+        (second.id, 2),
+        (first.id, 1),
+    ]
+
+    partial = repository.recent_observations_by_topic("coding-style", limit=5)
+
+    assert [(item.id, item.version) for item in partial] == [(first.id, 1)]
+
+
 def test_patch_increments_version_internally() -> None:
     repository = InMemoryObservationsRepository(
         observation_id_factory=lambda: "obs_001",

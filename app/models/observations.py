@@ -265,6 +265,13 @@ def score_content_match(content: str, query: str) -> float:
     return matches / len(query_terms)
 
 
+def topic_matches(label: str, query: str) -> bool:
+    normalized_query = normalize_label(query)
+    if not normalized_query:
+        return False
+    return normalized_query in normalize_label(label)
+
+
 def merge_mentions(
     existing: Iterable[MentionedEntity],
     additions: Iterable[MentionedEntity],
@@ -324,5 +331,6 @@ __all__ = [
     "normalize_label",
     "related_overlap",
     "score_content_match",
+    "topic_matches",
     "utc_now",
 ]

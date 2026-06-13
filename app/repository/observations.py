@@ -30,6 +30,12 @@ class ObservationsRepository(Protocol):
         limit: int = 5,
     ) -> tuple[ObservationSearchResult, ...]: ...
 
+    def recent_observations_by_topic(
+        self,
+        topic: str,
+        limit: int = 5,
+    ) -> tuple[ObservationSearchResult, ...]: ...
+
     def patch_observation(
         self,
         id: str,
