@@ -109,6 +109,10 @@ def test_create_patch_search_and_context_flow() -> None:
         ("obs_001", 2, 1.0),
         ("obs_002", 1, 1.0),
     ]
+    assert [item.updated_at for item in search] == sorted(
+        [item.updated_at for item in search],
+        reverse=True,
+    )
 
     context = repository.get_observation_context("obs_001")
     assert context.observation.id == "obs_001"
@@ -171,7 +175,7 @@ def test_recent_by_topic_matches_partial_topic_and_latest_versions() -> None:
         second.id,
         PatchObservationInput(
             addendum="This is the current version.",
-            observed_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
+            observed_at=datetime(2026, 4, 4, 10, 0, tzinfo=UTC),
         ),
     )
 
@@ -184,6 +188,10 @@ def test_recent_by_topic_matches_partial_topic_and_latest_versions() -> None:
         (second.id, 2),
         (first.id, 1),
     ]
+    assert [item.updated_at for item in recent] == sorted(
+        [item.updated_at for item in recent],
+        reverse=True,
+    )
 
     partial = repository.recent_observations_by_topic("coding-style", limit=5)
 

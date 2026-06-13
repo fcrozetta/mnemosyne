@@ -104,6 +104,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
     ) -> tuple[ObservationSearchResult, ...]:
         result = self.runtime.query(
             "SELECT id, observation_type, "
+            "updated_at, "
             "out('CurrentRevision')[0].version AS version, "
             "out('CurrentRevision')[0].content AS content, "
             "out('CurrentRevision')[0].observed_at AS observed_at "
@@ -123,6 +124,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                     version=int(row["version"]),
                     content_preview=content_preview(content),
                     observed_at=_datetime(row["observed_at"]),
+                    updated_at=_datetime(row["updated_at"]),
                     score=score,
                 )
             )
@@ -130,8 +132,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             sorted(
                 matches,
                 key=lambda item: (
-                    item.score,
-                    item.observed_at.timestamp(),
+                    item.updated_at.timestamp(),
                     item.id,
                 ),
                 reverse=True,
@@ -183,6 +184,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                     version=latest.version,
                     content_preview=content_preview(latest.content),
                     observed_at=latest.observed_at,
+                    updated_at=observation.updated_at,
                     score=1.0,
                 )
 
@@ -190,7 +192,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
             sorted(
                 matches.values(),
                 key=lambda item: (
-                    item.observed_at.timestamp(),
+                    item.updated_at.timestamp(),
                     item.id,
                 ),
                 reverse=True,
@@ -278,6 +280,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                     version=latest.version,
                     content_preview=content_preview(latest.content),
                     observed_at=latest.observed_at,
+                    updated_at=candidate.updated_at,
                     score=score,
                 )
             )
@@ -288,7 +291,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                     related,
                     key=lambda item: (
                         item.score,
-                        item.observed_at.timestamp(),
+                        item.updated_at.timestamp(),
                         item.id,
                     ),
                     reverse=True,

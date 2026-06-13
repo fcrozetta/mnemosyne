@@ -80,6 +80,7 @@ def test_arcade_repository_search_uses_current_revision_and_observation_type() -
                             "version": 2,
                             "content": "The blue shirt is at John's place.",
                             "observed_at": "2026-04-06T18:05:00Z",
+                            "updated_at": "2026-04-06T18:05:00Z",
                         }
                     ]
                 }
@@ -90,12 +91,14 @@ def test_arcade_repository_search_uses_current_revision_and_observation_type() -
                         "version": 1,
                         "content": "The blue shirt is missing.",
                         "observed_at": "2026-04-06T17:00:00Z",
+                        "updated_at": "2026-04-06T17:00:00Z",
                     },
                     {
                         "id": "obs_001",
                         "version": 2,
                         "content": "The blue shirt is at John's place.",
                         "observed_at": "2026-04-06T18:05:00Z",
+                        "updated_at": "2026-04-06T18:05:00Z",
                     },
                 ]
             }
@@ -138,6 +141,7 @@ def test_arcade_search_scores_loaded_current_revisions() -> None:
                         "version": 1,
                         "content": "Blue shirt is at John's place.",
                         "observed_at": "2026-04-06T17:00:00Z",
+                        "updated_at": "2026-04-06T17:00:00Z",
                     },
                     {
                         "id": "obs_002",
@@ -145,6 +149,7 @@ def test_arcade_search_scores_loaded_current_revisions() -> None:
                         "version": 1,
                         "content": "Blue mug is in the kitchen.",
                         "observed_at": "2026-04-06T18:00:00Z",
+                        "updated_at": "2026-04-07T18:00:00Z",
                     },
                 ]
             }
@@ -155,8 +160,8 @@ def test_arcade_search_scores_loaded_current_revisions() -> None:
     results = repository.search_observations("shirt blue", limit=5)
 
     assert [(item.id, item.score) for item in results] == [
-        ("obs_001", 1.0),
         ("obs_002", 0.5),
+        ("obs_001", 1.0),
     ]
     query, params = backend.queries[0]
     assert "LIKE" not in query
@@ -254,7 +259,7 @@ def test_arcade_recent_by_topic_uses_index_and_latest_notes() -> None:
                         "Addendum:\nThis is the current version."
                     ),
                     content_format="text/plain",
-                    observed_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
+                    observed_at=datetime(2026, 4, 4, 10, 0, tzinfo=UTC),
                     created_at=datetime(2026, 4, 8, 10, 0, tzinfo=UTC),
                     mentions=(lint_topic,),
                 ),

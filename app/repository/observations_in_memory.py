@@ -118,6 +118,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                     version=latest.version,
                     content_preview=content_preview(latest.content),
                     observed_at=latest.observed_at,
+                    updated_at=observation.updated_at,
                     score=score,
                 )
             )
@@ -126,8 +127,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
             sorted(
                 matches,
                 key=lambda item: (
-                    item.score,
-                    item.observed_at.timestamp(),
+                    item.updated_at.timestamp(),
                     item.id,
                 ),
                 reverse=True,
@@ -153,6 +153,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                     version=latest.version,
                     content_preview=content_preview(latest.content),
                     observed_at=latest.observed_at,
+                    updated_at=observation.updated_at,
                     score=1.0,
                 )
             )
@@ -161,7 +162,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
             sorted(
                 matches,
                 key=lambda item: (
-                    item.observed_at.timestamp(),
+                    item.updated_at.timestamp(),
                     item.id,
                 ),
                 reverse=True,
@@ -231,6 +232,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                     version=latest.version,
                     content_preview=content_preview(latest.content),
                     observed_at=latest.observed_at,
+                    updated_at=observation.updated_at,
                     score=score,
                 )
             )
@@ -242,7 +244,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
                     related,
                     key=lambda item: (
                         item.score,
-                        item.observed_at.timestamp(),
+                        item.updated_at.timestamp(),
                         item.id,
                     ),
                     reverse=True,
