@@ -34,6 +34,7 @@ Implemented now:
 - immutable revisions
 - sources
 - entity mentions
+- topic string mentions and recent topic lookup
 - latest observation reads
 - patch-based revision creation
 

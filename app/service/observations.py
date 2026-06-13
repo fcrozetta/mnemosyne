@@ -41,6 +41,13 @@ class ObservationsService:
     ) -> tuple[ObservationSearchResult, ...]:
         return self.repository.search_observations(query, limit=limit)
 
+    def recent_observations_by_topic(
+        self,
+        topic: str,
+        limit: int = 5,
+    ) -> tuple[ObservationSearchResult, ...]:
+        return self.repository.recent_observations_by_topic(topic, limit=limit)
+
     def patch_observation(
         self,
         id: str,

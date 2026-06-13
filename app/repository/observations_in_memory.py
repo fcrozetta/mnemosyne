@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from app.models.observations import (
     CreateObservationInput,
     EntityMentionInput,
+    EntityType,
     InvalidObservationPatchError,
     MentionedEntity,
     Observation,
@@ -13,6 +14,7 @@ from app.models.observations import (
     ObservationNotFoundError,
     ObservationRevision,
     ObservationSearchResult,
+    ObservationType,
     PatchObservationInput,
     ResolutionStatus,
     Source,
@@ -26,6 +28,7 @@ from app.models.observations import (
     merge_mentions,
     related_overlap,
     score_content_match,
+    topic_matches,
     utc_now,
 )
 from app.repository.observations import ObservationsRepository
@@ -124,6 +127,40 @@ class InMemoryObservationsRepository(ObservationsRepository):
                 matches,
                 key=lambda item: (
                     item.score,
+                    item.observed_at.timestamp(),
+                    item.id,
+                ),
+                reverse=True,
+            )[:limit]
+        )
+
+    def recent_observations_by_topic(
+        self,
+        topic: str,
+        limit: int = 5,
+    ) -> tuple[ObservationSearchResult, ...]:
+        matches: list[ObservationSearchResult] = []
+        for observation in self.observations.values():
+            if observation.type != ObservationType.NOTE:
+                continue
+            latest = observation.latest_revision
+            if latest is None or not _revision_mentions_topic(latest, topic):
+                continue
+            matches.append(
+                ObservationSearchResult(
+                    id=observation.id,
+                    type=observation.type,
+                    version=latest.version,
+                    content_preview=content_preview(latest.content),
+                    observed_at=latest.observed_at,
+                    score=1.0,
+                )
+            )
+
+        return tuple(
+            sorted(
+                matches,
+                key=lambda item: (
                     item.observed_at.timestamp(),
                     item.id,
                 ),
@@ -249,6 +286,13 @@ class InMemoryObservationsRepository(ObservationsRepository):
         )
         self.sources_by_identity[source_input.identity] = created
         return created
+
+
+def _revision_mentions_topic(revision: ObservationRevision, topic: str) -> bool:
+    return any(
+        mention.type == EntityType.TOPIC and topic_matches(mention.label, topic)
+        for mention in revision.mentions
+    )
 
 
 __all__ = ["InMemoryObservationsRepository"]
