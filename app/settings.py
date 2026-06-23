@@ -16,20 +16,25 @@ def parse_bool_env(value: str | None, *, name: str) -> bool:
 
 @dataclass(frozen=True, slots=True)
 class MnemosyneSettings:
-    access_policy_enabled: bool = False
+    domain_policy_enabled: bool = False
     access_context_headers_enabled: bool = False
+    safe_projections_enabled: bool = False
     access_audit_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> "MnemosyneSettings":
         return cls(
-            access_policy_enabled=parse_bool_env(
-                os.getenv("MNEMOSYNE_ACCESS_POLICY_ENABLED"),
-                name="MNEMOSYNE_ACCESS_POLICY_ENABLED",
+            domain_policy_enabled=parse_bool_env(
+                os.getenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED"),
+                name="MNEMOSYNE_DOMAIN_POLICY_ENABLED",
             ),
             access_context_headers_enabled=parse_bool_env(
                 os.getenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED"),
                 name="MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED",
+            ),
+            safe_projections_enabled=parse_bool_env(
+                os.getenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED"),
+                name="MNEMOSYNE_SAFE_PROJECTIONS_ENABLED",
             ),
             access_audit_enabled=parse_bool_env(
                 os.getenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED"),

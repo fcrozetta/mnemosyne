@@ -5,7 +5,6 @@ from app.models.observations import (
     MentionedEntity,
     Observation,
     ObservationRevision,
-    Source,
     content_preview,
 )
 from app.service.access_policy import PolicyDecision
@@ -21,17 +20,6 @@ def _mention_dict(mention: MentionedEntity) -> dict[str, object]:
         "type": mention.type.value,
         "label": mention.label,
         "resolution_status": mention.resolution_status.value,
-    }
-
-
-def _source_dict(source: Source | None) -> dict[str, object] | None:
-    if source is None:
-        return None
-    return {
-        "id": source.id,
-        "source_type": source.source_type.value,
-        "label": source.label,
-        "source_ref": source.source_ref,
     }
 
 
@@ -98,30 +86,11 @@ class ProjectionService:
             raise ValueError(msg)
 
         projection = context.requested_projection
-        if projection == ProjectionName.RAW_OBSERVATION:
-            return self._raw_view(observation, latest)
         if projection == ProjectionName.ACCOUNTING_VIEW:
             return self._accounting_view(observation, latest, decision)
         if projection == ProjectionName.HEALTH_CARE_VIEW:
             return self._health_care_view(observation, latest, decision)
         return self._summary_view(observation, latest, decision)
-
-    def _raw_view(
-        self,
-        observation: Observation,
-        revision: ObservationRevision,
-    ) -> dict[str, object]:
-        payload = _base_payload(observation, revision, ProjectionName.RAW_OBSERVATION)
-        payload.update(
-            {
-                "content": revision.content,
-                "content_format": revision.content_format,
-                "mentions": [_mention_dict(mention) for mention in revision.mentions],
-                "source": _source_dict(revision.source),
-                "redactions": [],
-            }
-        )
-        return payload
 
     def _summary_view(
         self,
@@ -134,21 +103,17 @@ class ProjectionService:
             revision,
             ProjectionName.OBSERVATION_SUMMARY,
         )
-        redactions = []
-        if decision.redacted or revision.sensitivity.value in {
-            "confidential",
-            "restricted",
-            "secret",
-        }:
-            redactions.append("full_content")
         payload.update(
             {
+                "content_preview": content_preview(revision.content),
                 "mentions": [_mention_dict(mention) for mention in revision.mentions],
-                "redactions": redactions,
+                "redactions": ["full_content"]
+                if decision.redacted
+                or revision.sensitivity.value
+                in {"confidential", "restricted", "secret"}
+                else [],
             }
         )
-        if "full_content" not in redactions:
-            payload["content_preview"] = content_preview(revision.content)
         return payload
 
     def _accounting_view(

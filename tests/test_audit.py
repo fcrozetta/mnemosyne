@@ -6,7 +6,7 @@ from app.storage.arcade import ArcadeStorageBackend
 
 def _context() -> AccessContext:
     return AccessContext(
-        actor_user="Sample User",
+        actor_user="Fernando",
         client_app="finance",
         service_identity="finance-api",
         purpose=Purpose.ACCOUNTING,
