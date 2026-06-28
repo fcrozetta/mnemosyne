@@ -30,6 +30,8 @@ def test_arcadedb_schema_defines_observation_truth_graph() -> None:
     assert "CREATE VERTEX TYPE Location IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Item IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Topic IF NOT EXISTS EXTENDS Entity;" in schema
+    assert "CREATE VERTEX TYPE Store IF NOT EXISTS EXTENDS Entity;" in schema
+    assert "CREATE VERTEX TYPE PaymentMethod IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE UnknownEntity IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Claim IF NOT EXISTS;" in schema
     assert "CREATE VERTEX TYPE Source IF NOT EXISTS;" in schema
@@ -45,6 +47,8 @@ def test_arcadedb_schema_defines_edges_and_current_revision_index() -> None:
     assert "CREATE EDGE TYPE Mentions IF NOT EXISTS;" in schema
     assert "CREATE EDGE TYPE About IF NOT EXISTS;" in schema
     assert "CREATE EDGE TYPE SupportedBy IF NOT EXISTS;" in schema
+    assert "CREATE EDGE TYPE LocatedAt IF NOT EXISTS;" in schema
+    assert "CREATE EDGE TYPE AcceptsPayment IF NOT EXISTS;" in schema
     assert "CREATE INDEX IF NOT EXISTS ON CurrentRevision (`@out`) UNIQUE;" in schema
 
 
