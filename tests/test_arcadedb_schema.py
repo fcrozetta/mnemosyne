@@ -57,8 +57,7 @@ def test_arcadedb_schema_defines_domain_id_indexes() -> None:
 
     assert (
         "UPDATE Revision SET observation = observation_id "
-        "WHERE observation IS NULL AND observation_id IS NOT NULL;"
-        in schema
+        "WHERE observation IS NULL AND observation_id IS NOT NULL;" in schema
     )
     assert "UPDATE Observation SET id = observation_id" in schema
     assert "UPDATE Revision SET id = revision_id" in schema
@@ -75,14 +74,13 @@ def test_arcadedb_schema_defines_domain_id_indexes() -> None:
     assert "CREATE INDEX IF NOT EXISTS ON Claim (id) UNIQUE;" in schema
     assert "CREATE INDEX IF NOT EXISTS ON Source (id) UNIQUE;" in schema
     assert (
-        "CREATE INDEX IF NOT EXISTS ON Entity (entity_type, normalized_label) UNIQUE;"
-        in schema
+        "CREATE INDEX IF NOT EXISTS ON Entity (entity_type, normalized_label, scope) "
+        "UNIQUE;" in schema
     )
     assert "CREATE INDEX IF NOT EXISTS ON Topic (normalized_label) UNIQUE;" in schema
     assert (
         "CREATE INDEX IF NOT EXISTS ON Source (source_type, label, source_ref) "
-        "UNIQUE NULL_STRATEGY INDEX;"
-        in schema
+        "UNIQUE NULL_STRATEGY INDEX;" in schema
     )
 
 
@@ -93,6 +91,14 @@ def test_arcadedb_schema_drops_legacy_identity_indexes() -> None:
     assert "DROP INDEX `Revision[revision_id]` IF EXISTS;" in schema
     assert "DROP INDEX `Revision[observation_id,version]` IF EXISTS;" in schema
     assert "DROP INDEX `Entity[entity_id]` IF EXISTS;" in schema
+    assert (
+        "DROP INDEX `Entity[entity_type,normalized_label,scope]` IF EXISTS;" in schema
+    )
+    assert "DROP INDEX `Store[normalized_label]` IF EXISTS;" in schema
+    assert "DROP INDEX `Person[normalized_label,scope]` IF EXISTS;" in schema
+    assert "DROP INDEX `Location[normalized_label,scope]` IF EXISTS;" in schema
+    assert "DROP INDEX `Store[normalized_label,scope]` IF EXISTS;" in schema
+    assert "DROP INDEX `Item[normalized_label,scope]` IF EXISTS;" in schema
     assert "DROP INDEX `Claim[claim_id]` IF EXISTS;" in schema
     assert "DROP INDEX `Source[source_id]` IF EXISTS;" in schema
 

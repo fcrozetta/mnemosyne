@@ -4,10 +4,12 @@ import re
 
 from fastapi.testclient import TestClient
 
+from app.dependencies import reset_settings_cache
 from app.main import create_app
 
 
 def _client() -> TestClient:
+    reset_settings_cache()
     return TestClient(create_app())
 
 

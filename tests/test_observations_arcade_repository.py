@@ -331,6 +331,7 @@ def test_arcade_repository_create_observation_writes_truth_graph() -> None:
     assert "UPSERT WHERE source_type = :source_type" in script
     assert "UPDATE Item SET" in script
     assert "UPSERT WHERE entity_type = :entity_type_0" in script
+    assert "AND normalized_label = :normalized_label_0 AND scope = 'general'" in script
     assert "CREATE EDGE HasRevision" in script
     assert "CREATE EDGE CurrentRevision" in script
     assert "CREATE EDGE ObservedFrom" in script
@@ -582,6 +583,10 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
             "It is still blue."
         ),
         "content_format": "text/plain",
+        "domain": "general",
+        "sensitivity": "personal",
+        "subject": None,
+        "allowed_purposes": "[]",
         "observed_at": "2026-04-06 18:00:00",
         "created_at": revision_payload["created_at"],
     }
@@ -644,6 +649,8 @@ def test_arcade_patch_carries_current_source_and_mentions() -> None:
 
     assert "CREATE EDGE ObservedFrom" in script
     assert script.count("CREATE EDGE Mentions") == 2
+    assert "AND normalized_label = :normalized_label_0 AND scope = 'general'" in script
+    assert "AND normalized_label = :normalized_label_1 AND scope = 'general'" in script
     assert params["source_id"] == "src_codex"
     assert params["entity_id_0"] == "ent_shirt"
     assert params["entity_id_1"] == "ent_001"

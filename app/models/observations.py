@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from app.models.access import Domain, Purpose, Sensitivity
+
 _CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
@@ -20,6 +22,7 @@ class ObservationType(StrEnum):
 class EntityType(StrEnum):
     PERSON = "person"
     LOCATION = "location"
+    STORE = "store"
     ITEM = "item"
     TOPIC = "topic"
     OTHER = "other"
@@ -123,6 +126,10 @@ class ObservationRevision:
     created_at: datetime
     mentions: tuple[MentionedEntity, ...] = ()
     source: Source | None = None
+    domain: Domain = Domain.GENERAL
+    sensitivity: Sensitivity = Sensitivity.PERSONAL
+    subject: str | None = None
+    allowed_purposes: tuple[Purpose, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +161,10 @@ class CreateObservationInput:
     observed_at: datetime | None = None
     source: SourceInput | None = None
     content_format: str = "text/plain"
+    domain: Domain = Domain.GENERAL
+    sensitivity: Sensitivity = Sensitivity.PERSONAL
+    subject: str | None = None
+    allowed_purposes: tuple[Purpose, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,6 +314,7 @@ def related_overlap(observation: Observation, other: Observation) -> int:
 __all__ = [
     "ClaimStatus",
     "CreateObservationInput",
+    "Domain",
     "EntityMentionInput",
     "EntityType",
     "InvalidObservationPatchError",
@@ -316,9 +328,11 @@ __all__ = [
     "ObservationSearchResult",
     "ObservationType",
     "PatchObservationInput",
+    "Purpose",
     "ResolutionStatus",
     "Source",
     "SourceInput",
+    "Sensitivity",
     "SourceType",
     "append_addendum",
     "content_preview",
