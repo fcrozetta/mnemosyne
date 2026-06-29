@@ -38,7 +38,91 @@ The app entrypoint is `app.main:app`. `/healthz` is fail-closed: it returns
 uv run fastapi dev app/main.py --port 8000
 ```
 
-## Alpha API
+## Mnemosyne MCP
+
+The package ships a custom stdio MCP server for agent-facing curated memory
+operations. It intentionally does **not** mirror the FastAPI routes as generic
+MCP tools; tools expose provenance-first memory intents and call the HTTP API
+internally.
+
+Initial tools:
+
+- `create_document` creates a provenance document using the observation API.
+- `find_entities` searches the curated entity registry before new writes.
+- `create_entity` creates or updates a curated person, location, store, or item.
+- `get_entity` fetches one curated entity by id.
+
+Run it locally against the default API URL:
+
+```shell
+uv run mnemosyne-mcp
+```
+
+Configure the target API with `MNEMOSYNE_API_URL` when needed. MCP requests send
+access-context headers by default (`mnemosyne.query mnemosyne.write`) so local
+deployments with the optional access pipeline enabled can still use the server.
+Those defaults can be overridden with `MNEMOSYNE_MCP_*` environment variables.
+
+Example Hermes configuration:
+
+```yaml
+mcp_servers:
+  mnemosyne:
+    command: "uv"
+    args: ["run", "--project", "/path/to/mnemosyne", "mnemosyne-mcp"]
+    env:
+      MNEMOSYNE_API_URL: "http://127.0.0.1:8180"
+```
+
+### Agent setup prompt
+
+Use this prompt when asking an MCP-capable agent to install Mnemosyne's MCP:
+
+```text
+Install and verify the Mnemosyne MCP as a custom curated-memory MCP, not a
+FastAPI endpoint mirror.
+
+Inputs:
+- Mnemosyne repository path: <path-to-mnemosyne>
+- Mnemosyne API URL: http://127.0.0.1:8180 unless I provide another URL
+
+Steps:
+1. Verify the repository exists and contains `pyproject.toml` with the
+   `mnemosyne-mcp` console script.
+2. From the repository, run `uv sync` so the `mcp` and `httpx` runtime
+   dependencies are installed.
+3. Configure the MCP client to launch the stdio server with:
+   `uv run --project <path-to-mnemosyne> mnemosyne-mcp`
+   and set `MNEMOSYNE_API_URL` to the API URL above.
+4. Test MCP discovery and confirm the available tools are exactly the curated
+   memory tools: `create_document`, `find_entities`, `create_entity`, and
+   `get_entity`.
+5. Restart or reload the MCP-capable agent if required by the client.
+
+Usage rules:
+- Use this MCP only for already-curated, durable information with provenance.
+- Before creating an entity, call `find_entities` to avoid duplicates.
+- Write provenance first with `create_document` when recording a new durable
+  fact source.
+- Do not use this MCP for casual conversation logs or uncurated scratch notes.
+- Do not install `fastapi-mcp` for this; the Mnemosyne MCP intentionally exposes
+  memory intents rather than raw API routes.
+```
+
+For Hermes specifically, the setup command is:
+
+```shell
+MNEMOSYNE_REPO=/path/to/mnemosyne
+MNEMOSYNE_API_URL=http://127.0.0.1:8180
+printf 'Y\n' | hermes mcp add mnemosyne \
+  --command "$(command -v uv)" \
+  --env MNEMOSYNE_API_URL="$MNEMOSYNE_API_URL" \
+  --args run --project "$MNEMOSYNE_REPO" mnemosyne-mcp
+hermes mcp test mnemosyne
+hermes mcp list
+```
+
+## Observation API
 
 The public alpha contract is observation-centered. First-class entities and
 safe projections exist to support the shared graph, but observations remain how
