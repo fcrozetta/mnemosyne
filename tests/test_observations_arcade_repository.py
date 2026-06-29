@@ -331,6 +331,7 @@ def test_arcade_repository_create_observation_writes_truth_graph() -> None:
     assert "UPSERT WHERE source_type = :source_type" in script
     assert "UPDATE Item SET" in script
     assert "UPSERT WHERE entity_type = :entity_type_0" in script
+    assert "AND normalized_label = :normalized_label_0 AND scope = 'general'" in script
     assert "CREATE EDGE HasRevision" in script
     assert "CREATE EDGE CurrentRevision" in script
     assert "CREATE EDGE ObservedFrom" in script
@@ -384,6 +385,31 @@ def test_arcade_repository_create_observation_keeps_entity_identity_stable() -> 
     )
 
     assert "id = ifnull(id, :entity_id_0)" in script
+
+
+def test_arcade_repository_mentions_preserve_curated_entity_metadata() -> None:
+    backend = _FakeArcadeBackend()
+    repository = ArcadeObservationsRepository(runtime=backend)
+
+    script, _params = repository._create_observation_script(
+        observation=CreateObservationInput(
+            type=ObservationType.NOTE,
+            content="Need to pick up my shirt.",
+            mentions=(EntityMentionInput(type=EntityType.PERSON, label="Alex"),),
+        ),
+        observation_id="obs_001",
+        revision_id="obs_001:v1",
+        source=SourceInput(source_type=SourceType.AGENT),
+        source_id="src_001",
+        observed_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
+        created_at=datetime(2026, 4, 6, 17, 0, tzinfo=UTC),
+    )
+
+    assert "resolution_status = ifnull(resolution_status, 'unresolved')" in script
+    assert "sensitivity = ifnull(sensitivity, 'personal')" in script
+    assert "updated_at = ifnull(updated_at, :created_at)" in script
+    assert "resolution_status = 'unresolved'" not in script
+    assert "scope = 'general', sensitivity = 'personal'" not in script
 
 
 def test_arcade_repository_serializes_datetime_in_arcadedb_format() -> None:
@@ -582,6 +608,10 @@ def test_arcade_repository_patch_retries_when_assigned_version_conflicts() -> No
             "It is still blue."
         ),
         "content_format": "text/plain",
+        "domain": "general",
+        "sensitivity": "personal",
+        "subject": None,
+        "allowed_purposes": "[]",
         "observed_at": "2026-04-06 18:00:00",
         "created_at": revision_payload["created_at"],
     }
@@ -644,6 +674,15 @@ def test_arcade_patch_carries_current_source_and_mentions() -> None:
 
     assert "CREATE EDGE ObservedFrom" in script
     assert script.count("CREATE EDGE Mentions") == 2
+    assert "AND normalized_label = :normalized_label_0 AND scope = 'general'" in script
+    assert "AND normalized_label = :normalized_label_1 AND scope = 'general'" in script
+    assert (
+        "resolution_status = ifnull(resolution_status, :resolution_status_0)"
+        in script
+    )
+    assert "sensitivity = ifnull(sensitivity, 'personal')" in script
+    assert "resolution_status = :resolution_status_0" not in script
+    assert "scope = 'general', sensitivity = 'personal'" not in script
     assert params["source_id"] == "src_codex"
     assert params["entity_id_0"] == "ent_shirt"
     assert params["entity_id_1"] == "ent_001"

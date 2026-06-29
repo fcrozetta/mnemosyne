@@ -38,7 +38,22 @@ The app entrypoint is `app.main:app`. `/healthz` is fail-closed: it returns
 uv run fastapi dev app/main.py --port 8000
 ```
 
-## Observation API
+## Alpha API
+
+The public alpha contract is observation-centered. First-class entities and
+safe projections exist to support the shared graph, but observations remain how
+new evidence enters the system.
+
+Optional access-policy features are default-off and enabled only when their
+environment flags are set:
+
+- `MNEMOSYNE_ACCESS_POLICY_ENABLED` gates domain/purpose/sensitivity policy
+  checks and safe projections as one unit.
+- `MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED` enables reading request context
+  from `X-Mnemosyne-*` headers.
+- `MNEMOSYNE_ACCESS_AUDIT_ENABLED`
+
+### Observation API
 
 Create a note observation:
 
@@ -79,3 +94,33 @@ both descending; `score` does not override recency ordering. Scores are relative
 to one query result set, not calibrated across different queries. Stemming,
 BM25/TF-IDF, embeddings, and hybrid reranking are not active yet; stronger
 indexes are planned.
+
+### Entity Registry
+
+The `/entities` registry supports first-class `person`, `location`, `store`, and
+`item` records. Entity mentions inside observations remain evidence navigation;
+registry entities are the identity/profile records with `scope`, `sensitivity`,
+`allowed_purposes`, and subtype-specific fields.
+
+```shell
+curl -sS http://127.0.0.1:8180/entities \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "item",
+    "label": "Pilot Custom 823 Amber",
+    "scope": "possessions/pens",
+    "sensitivity": "personal",
+    "item": {
+      "item_kind": "pen",
+      "category": "writing_instrument",
+      "subcategory": "fountain_pen",
+      "brand": "Pilot",
+      "model": "Custom 823",
+      "variant": "Amber"
+    }
+  }'
+```
+
+```shell
+curl -sS 'http://127.0.0.1:8180/entities?type=item&q=pilot&limit=25'
+```

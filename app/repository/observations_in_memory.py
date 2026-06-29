@@ -3,6 +3,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from app.models.entities import (
+    ContactMethod,
+    ContactMethodInput,
+    CreateEntityInput,
+    EntityNotFoundError,
+    EntityRecord,
+    ItemProfile,
+    ItemProfileInput,
+    LocationProfile,
+    LocationProfileInput,
+    PersonProfile,
+    PersonProfileInput,
+    StoreProfile,
+    StoreProfileInput,
+)
 from app.models.observations import (
     CreateObservationInput,
     EntityMentionInput,
@@ -46,6 +61,10 @@ class InMemoryObservationsRepository(ObservationsRepository):
     entities_by_identity: dict[tuple[str, str], MentionedEntity] = field(
         default_factory=dict
     )
+    entity_records_by_id: dict[str, EntityRecord] = field(default_factory=dict)
+    entity_records_by_identity: dict[tuple[str, str, str], EntityRecord] = field(
+        default_factory=dict
+    )
     sources_by_identity: dict[tuple[str, str | None, str | None], Source] = field(
         default_factory=dict
     )
@@ -81,6 +100,10 @@ class InMemoryObservationsRepository(ObservationsRepository):
             created_at=created_at,
             mentions=self._resolve_mentions(observation.mentions),
             source=self._resolve_source(observation.source, created_at),
+            domain=observation.domain,
+            sensitivity=observation.sensitivity,
+            subject=observation.subject,
+            allowed_purposes=observation.allowed_purposes,
         )
         created = Observation(
             id=observation_id,
@@ -91,6 +114,64 @@ class InMemoryObservationsRepository(ObservationsRepository):
         )
         self.observations[observation_id] = created
         return created
+
+    def create_entity(self, entity: CreateEntityInput) -> EntityRecord:
+        now = utc_now()
+        identity = (entity.type.value, entity.normalized_label, entity.scope)
+        existing = self.entity_records_by_identity.get(identity)
+        entity_id = existing.id if existing is not None else self.entity_id_factory()
+        created_at = existing.created_at if existing is not None else now
+        record = EntityRecord(
+            id=entity_id,
+            type=entity.type,
+            label=entity.label,
+            normalized_label=entity.normalized_label,
+            resolution_status=ResolutionStatus.RESOLVED,
+            scope=entity.scope,
+            sensitivity=entity.sensitivity,
+            allowed_purposes=entity.allowed_purposes,
+            created_at=created_at,
+            updated_at=now,
+            person=_person_profile(entity.person),
+            location=_location_profile(entity.location),
+            store=_store_profile(entity.store),
+            item=_item_profile(entity.item),
+        )
+        self.entity_records_by_id[record.id] = record
+        self.entity_records_by_identity[identity] = record
+        return record
+
+    def get_entity(self, id: str) -> EntityRecord:
+        try:
+            return self.entity_records_by_id[id]
+        except KeyError as exc:
+            raise EntityNotFoundError(id) from exc
+
+    def list_entities(
+        self,
+        *,
+        entity_type: str | None = None,
+        scope: str | None = None,
+        query: str | None = None,
+        limit: int = 25,
+    ) -> tuple[EntityRecord, ...]:
+        normalized_query = query.casefold().strip() if query else None
+        matches: list[EntityRecord] = []
+        for entity in self.entity_records_by_id.values():
+            if entity_type is not None and entity.type.value != entity_type:
+                continue
+            if scope is not None and entity.scope != scope:
+                continue
+            if normalized_query and normalized_query not in entity.label.casefold():
+                continue
+            matches.append(entity)
+        return tuple(
+            sorted(
+                matches,
+                key=lambda item: (item.updated_at.timestamp(), item.id),
+                reverse=True,
+            )[:limit]
+        )
 
     def get_observation(self, id: str) -> Observation:
         try:
@@ -197,6 +278,10 @@ class InMemoryObservationsRepository(ObservationsRepository):
             created_at=created_at,
             mentions=merge_mentions(latest.mentions, added_mentions),
             source=latest.source,
+            domain=latest.domain,
+            sensitivity=latest.sensitivity,
+            subject=latest.subject,
+            allowed_purposes=latest.allowed_purposes,
         )
         updated = Observation(
             id=current.id,
@@ -294,6 +379,74 @@ def _revision_mentions_topic(revision: ObservationRevision, topic: str) -> bool:
     return any(
         mention.type == EntityType.TOPIC and topic_matches(mention.label, topic)
         for mention in revision.mentions
+    )
+
+
+def _person_profile(value: PersonProfileInput | None) -> PersonProfile | None:
+    if value is None:
+        return None
+    return PersonProfile(
+        display_name=value.display_name,
+        given_name=value.given_name,
+        family_name=value.family_name,
+        contact_methods=tuple(
+            _contact_method(method) for method in value.contact_methods
+        ),
+    )
+
+
+def _contact_method(value: ContactMethodInput) -> ContactMethod:
+    return ContactMethod(
+        kind=value.kind,
+        value=value.value,
+        label=value.label,
+        sensitivity=value.sensitivity,
+    )
+
+
+def _location_profile(value: LocationProfileInput | None) -> LocationProfile | None:
+    if value is None:
+        return None
+    return LocationProfile(
+        location_kind=value.location_kind,
+        street_address=value.street_address,
+        postal_code=value.postal_code,
+        locality=value.locality,
+        region=value.region,
+        country=value.country,
+        latitude=value.latitude,
+        longitude=value.longitude,
+    )
+
+
+def _store_profile(value: StoreProfileInput | None) -> StoreProfile | None:
+    if value is None:
+        return None
+    return StoreProfile(
+        store_kind=value.store_kind,
+        website=value.website,
+        categories=value.categories,
+        country_scope=value.country_scope,
+        physical_store_status=value.physical_store_status,
+        source_urls=value.source_urls,
+        reference_notes=value.reference_notes,
+    )
+
+
+def _item_profile(value: ItemProfileInput | None) -> ItemProfile | None:
+    if value is None:
+        return None
+    return ItemProfile(
+        item_kind=value.item_kind,
+        category=value.category,
+        subcategory=value.subcategory,
+        brand=value.brand,
+        model=value.model,
+        variant=value.variant,
+        color=value.color,
+        size=value.size,
+        serial_number=value.serial_number,
+        identifiers=value.identifiers,
     )
 
 

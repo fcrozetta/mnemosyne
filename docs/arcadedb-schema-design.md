@@ -51,7 +51,7 @@ flowchart LR
     O["Observation<br/>Note / Document / Message"]
     R["Revision"]
     S["Source"]
-    E["Entity<br/>Person / Location / Item / Topic / UnknownEntity"]
+    E["Entity<br/>Person / Location / Store / Item / Topic / UnknownEntity"]
     C["Claim"]
 
     O -->|HAS_REVISION| R
@@ -71,7 +71,9 @@ Core types:
 - `Revision`: immutable observed state for an observation.
 - `Source`: reusable provenance origin, such as an agent session, import source,
   app integration, or user channel.
-- `Entity`: durable world object in the user's life.
+- `Entity`: durable world object in the user's life. Shared real-world entities
+  exist once in the graph and app/domain meaning is attached through scoped
+  facts, claims, policies, and projections rather than duplicated app objects.
 - `Claim`: one knowledge candidate that may be proposed, accepted, rejected, or
   superseded.
 
@@ -145,6 +147,12 @@ Properties:
 - `version`
 - `content`
 - `content_format`: initially `text/plain`
+- `domain`: broad source/meaning domain such as `general`, `health`, `finance`,
+  `documents`, `identity`, `household`, `shopping`, or `system`
+- `sensitivity`: `public`, `personal`, `confidential`, `restricted`, or `secret`
+- `subject`: optional subject/person scope for policy decisions
+- `allowed_purposes`: serialized list of allowed use purposes, such as `recall`,
+  `accounting`, `reminder`, or `medication_management`
 - `observed_at`
 - `created_at`
 
@@ -162,6 +170,10 @@ Properties:
 - `label`
 - `normalized_label`
 - `resolution_status`: `unresolved`, `resolved`, `merged`, `archived`
+- `scope`: namespace/bounded-context scope. This prevents unrelated domains from
+  accidentally coalescing same-label entities.
+- `sensitivity`
+- `allowed_purposes`
 - `created_at`
 - `updated_at`
 
@@ -169,9 +181,16 @@ Subtypes:
 
 - `Person`
 - `Location`
+- `Store`
 - `Item`
 - `Topic`
+- `PaymentMethod` (schema-ready support type)
 - `UnknownEntity`
+
+The public entity registry currently creates and lists `Person`, `Location`,
+`Store`, and `Item` records. `Topic` remains primarily an observation mention
+shortcut. `PaymentMethod` and store relationship edges are schema-ready for
+commerce/receipt modeling but do not yet have a first-class API surface.
 
 Typed unresolved inputs become unresolved vertices of their subtype. For
 example, a `location` label-only input creates or reuses a `Location` with
@@ -181,6 +200,12 @@ categories and public `other` input.
 `Topic.normalized_label` is indexed for topic-specific lookup. Agents may use
 colon-separated topic labels such as `coding:fcrozetta:python:coding-style`;
 read endpoints support partial topic label matching.
+
+The entity registry is intentionally richer than mention creation. A mention is
+evidence navigation; a first-class entity record is an identity/profile record
+with scope, sensitivity, allowed-purpose metadata, and subtype-specific fields
+such as person contact methods, physical addresses, vendor/store categories, or
+classified item attributes.
 
 ### Claim
 
