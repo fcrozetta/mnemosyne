@@ -49,7 +49,9 @@ Initial tools:
 
 - `create_document` creates a provenance document using the observation API.
 - `find_entities` searches the curated entity registry before new writes.
-- `create_entity` creates or updates a curated person, location, store, or item.
+- `create_entity` creates or updates a curated person, location, store, or item;
+  new entities require a profile payload, while profile-less calls only return an
+  exact existing entity and otherwise fail closed.
 - `get_entity` fetches one curated entity by id.
 
 Run it locally against the default API URL:
@@ -102,6 +104,9 @@ Steps:
 Usage rules:
 - Use this MCP only for already-curated, durable information with provenance.
 - Before creating an entity, call `find_entities` to avoid duplicates.
+- Provide a full `profile` when creating a new entity; profile-less
+  `create_entity` is only for returning an exact existing entity and fails
+  closed when none is found.
 - Write provenance first with `create_document` when recording a new durable
   fact source.
 - Do not use this MCP for casual conversation logs or uncurated scratch notes.

@@ -124,6 +124,12 @@ class MnemosyneApiClient:
             )
             if existing is not None:
                 return existing
+            raise MnemosyneApiError(
+                "Refusing profile-less entity upsert because no exact existing "
+                "entity was found. Provide a profile to create a new curated "
+                "entity, or call find_entities first and use get_entity for an "
+                "existing entity."
+            )
 
         payload = _without_none(
             {
@@ -154,7 +160,7 @@ class MnemosyneApiClient:
             entity_type=entity_type,
             query=query_label,
             scope=scope,
-            limit=10,
+            limit=100,
         ):
             if (
                 entity.get("type") == entity_type

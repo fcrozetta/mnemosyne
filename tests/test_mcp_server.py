@@ -180,7 +180,53 @@ def test_mcp_client_returns_existing_entity_without_profileless_upsert() -> None
     assert requests == [
         (
             "GET",
-            "http://mnemosyne.test/entities?type=person&q=Fernando+Crozetta&scope=personal&limit=10",
+            "http://mnemosyne.test/entities?type=person&q=Fernando+Crozetta&scope=personal&limit=100",
+            None,
+        )
+    ]
+
+
+def test_mcp_client_refuses_profileless_create_when_exact_entity_not_found() -> None:
+    requests: list[tuple[str, str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, str(request.url), None))
+        if request.method == "POST":
+            return httpx.Response(500, json={"detail": "unsafe profileless upsert"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": f"ent_{index}",
+                    "type": "person",
+                    "label": f"Alex {index}",
+                    "normalized_label": f"alex {index}",
+                    "scope": "personal",
+                }
+                for index in range(100)
+            ],
+        )
+
+    http_client = httpx.Client(
+        base_url="http://mnemosyne.test",
+        transport=httpx.MockTransport(handler),
+    )
+    client = MnemosyneApiClient(
+        "http://mnemosyne.test",
+        http_client=http_client,
+    )
+
+    try:
+        client.create_entity(entity_type="person", label="Alex")
+    except MnemosyneApiError as exc:
+        assert "Refusing profile-less entity upsert" in str(exc)
+    else:
+        raise AssertionError("expected MnemosyneApiError")
+
+    assert requests == [
+        (
+            "GET",
+            "http://mnemosyne.test/entities?type=person&q=Alex&scope=personal&limit=100",
             None,
         )
     ]
@@ -208,13 +254,16 @@ def test_mcp_client_preserves_base_url_path_prefix() -> None:
 
     client.create_document(content="source document")
     client.find_entities(query="pilot")
-    client.create_entity(entity_type="item", label="Pilot Custom 823")
+    client.create_entity(
+        entity_type="item",
+        label="Pilot Custom 823",
+        profile={"item_kind": "pen"},
+    )
     client.get_entity(entity_id="ent_1")
 
     assert urls == [
         "https://mnemosyne.test/api/v1/observations",
         "https://mnemosyne.test/api/v1/entities?q=pilot&limit=25",
-        "https://mnemosyne.test/api/v1/entities?type=item&q=Pilot+Custom+823&scope=personal&limit=10",
         "https://mnemosyne.test/api/v1/entities",
         "https://mnemosyne.test/api/v1/entities/ent_1",
     ]
