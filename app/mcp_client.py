@@ -83,7 +83,7 @@ class MnemosyneApiClient:
                 ),
             }
         )
-        return self._request("POST", "/observations", json=payload)
+        return self._request("POST", "observations", json=payload)
 
     def find_entities(
         self,
@@ -101,7 +101,7 @@ class MnemosyneApiClient:
                 "limit": limit,
             }
         )
-        response = self._request("GET", "/entities", params=params)
+        response = self._request("GET", "entities", params=params)
         if not isinstance(response, list):
             raise MnemosyneApiError("Expected /entities to return a list.")
         return response
@@ -127,12 +127,14 @@ class MnemosyneApiClient:
         )
         if profile:
             payload[entity_type] = profile
-        return self._request("POST", "/entities", json=payload)
+        return self._request("POST", "entities", json=payload)
 
     def get_entity(self, *, entity_id: str) -> dict[str, Any]:
-        return self._request("GET", f"/entities/{entity_id}")
+        return self._request("GET", f"entities/{entity_id}")
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        if path.startswith("/"):
+            path = path.lstrip("/")
         try:
             response = self._client.request(method, path, **kwargs)
         except httpx.HTTPError as exc:

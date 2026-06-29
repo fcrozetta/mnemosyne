@@ -135,6 +135,39 @@ def test_mcp_client_entity_tools_wrap_entity_registry() -> None:
     )
 
 
+def test_mcp_client_preserves_base_url_path_prefix() -> None:
+    urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        urls.append(str(request.url))
+        if request.method == "GET" and request.url.path.endswith("/entities"):
+            return httpx.Response(200, json=[])
+        if request.method == "GET":
+            return httpx.Response(200, json={"id": "ent_1"})
+        return httpx.Response(201, json={"id": "obs_1"})
+
+    http_client = httpx.Client(
+        base_url="https://mnemosyne.test/api/v1/",
+        transport=httpx.MockTransport(handler),
+    )
+    client = MnemosyneApiClient(
+        "https://mnemosyne.test/api/v1/",
+        http_client=http_client,
+    )
+
+    client.create_document(content="source document")
+    client.find_entities(query="pilot")
+    client.create_entity(entity_type="item", label="Pilot Custom 823")
+    client.get_entity(entity_id="ent_1")
+
+    assert urls == [
+        "https://mnemosyne.test/api/v1/observations",
+        "https://mnemosyne.test/api/v1/entities?q=pilot&limit=25",
+        "https://mnemosyne.test/api/v1/entities",
+        "https://mnemosyne.test/api/v1/entities/ent_1",
+    ]
+
+
 def test_mcp_client_raises_clear_api_errors() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(422, json={"detail": "invalid"})
