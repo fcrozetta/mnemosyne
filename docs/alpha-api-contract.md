@@ -34,9 +34,9 @@ See also:
   Deployment-level network or proxy auth is outside this API contract.
 - Optional access features are controlled by environment flags, all defaulting
   to `false`:
-  - `MNEMOSYNE_DOMAIN_POLICY_ENABLED`
+  - `MNEMOSYNE_ACCESS_POLICY_ENABLED` gates domain/purpose/sensitivity policy
+    checks and safe projections as one unit.
   - `MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED`
-  - `MNEMOSYNE_SAFE_PROJECTIONS_ENABLED`
   - `MNEMOSYNE_ACCESS_AUDIT_ENABLED`
 - When the access pipeline is enabled, callers provide context using
   `X-Mnemosyne-Actor-User`, `X-Mnemosyne-Client-App`,

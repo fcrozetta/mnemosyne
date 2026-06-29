@@ -44,12 +44,13 @@ The public alpha contract is observation-centered. First-class entities and
 safe projections exist to support the shared graph, but observations remain how
 new evidence enters the system.
 
-Optional domain-policy features are default-off and enabled only when their
+Optional access-policy features are default-off and enabled only when their
 environment flags are set:
 
-- `MNEMOSYNE_DOMAIN_POLICY_ENABLED`
-- `MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED`
-- `MNEMOSYNE_SAFE_PROJECTIONS_ENABLED`
+- `MNEMOSYNE_ACCESS_POLICY_ENABLED` gates domain/purpose/sensitivity policy
+  checks and safe projections as one unit.
+- `MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED` enables reading request context
+  from `X-Mnemosyne-*` headers.
 - `MNEMOSYNE_ACCESS_AUDIT_ENABLED`
 
 ### Observation API

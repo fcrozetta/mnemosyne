@@ -12,14 +12,12 @@ from app.main import create_app
 def _client(monkeypatch, *, flags: bool) -> TestClient:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     if flags:
-        monkeypatch.setenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", "true")
+        monkeypatch.setenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", "true")
-        monkeypatch.setenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", "true")
     else:
-        monkeypatch.delenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", raising=False)
+        monkeypatch.delenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", raising=False)
-        monkeypatch.delenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", raising=False)
     reset_observations_repository_cache()
     reset_settings_cache()

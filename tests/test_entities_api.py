@@ -12,14 +12,12 @@ from app.main import create_app
 def _client(monkeypatch, *, flags: bool = False) -> TestClient:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     if flags:
-        monkeypatch.setenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", "true")
+        monkeypatch.setenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", "true")
-        monkeypatch.setenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", "true")
     else:
-        monkeypatch.delenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", raising=False)
+        monkeypatch.delenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", raising=False)
-        monkeypatch.delenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", raising=False)
     reset_observations_repository_cache()
     reset_settings_cache()
@@ -338,6 +336,36 @@ def test_entity_raw_scope_discloses_confidential_details(monkeypatch) -> None:
         response.json()["person"]["contact_methods"][0]["value"] == "+55 11 99999-0000"
     )
     assert response.json()["redactions"] == []
+
+
+def test_entity_policy_redacts_restricted_contact_on_personal_entity(
+    monkeypatch,
+) -> None:
+    client = _client(monkeypatch, flags=True)
+    person = client.post(
+        "/entities",
+        json={
+            "type": "person",
+            "label": "Mario Rossi",
+            "scope": "contacts",
+            "sensitivity": "personal",
+            "person": {
+                "contact_methods": [
+                    {
+                        "kind": "phone",
+                        "value": "+55 11 99999-0000",
+                        "sensitivity": "restricted",
+                    }
+                ],
+            },
+        },
+    ).json()
+
+    response = client.get(f"/entities/{person['id']}", headers=_owner_headers())
+
+    assert response.status_code == 200
+    assert response.json()["person"]["contact_methods"][0]["value"] is None
+    assert "contact_methods.value" in response.json()["redactions"]
 
 
 def test_entity_policy_denies_secret_entity_without_admin(monkeypatch) -> None:

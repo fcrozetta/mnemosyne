@@ -1130,9 +1130,8 @@ def _serialize_authorized_observation(
     observation: Observation,
     decision: PolicyDecision,
 ) -> dict[str, Any]:
-    if settings.safe_projections_enabled:
-        return ProjectionService().project_observation(context, observation, decision)
-    return _serialize_observation(observation, include_classification=True)
+    del settings
+    return ProjectionService().project_observation(context, observation, decision)
 
 
 def _entity_response(request: Request, entity: EntityRecord) -> dict[str, Any]:
@@ -1149,7 +1148,9 @@ def _entity_response(request: Request, entity: EntityRecord) -> dict[str, Any]:
     if not decision.allowed:
         _raise_access_denied(decision)
     return _serialize_entity(
-        entity, redacted=settings.safe_projections_enabled and decision.redacted
+        entity,
+        redacted=decision.redacted,
+        redact_sensitive_fields=_entity_field_redactions_enabled(context),
     )
 
 
@@ -1173,14 +1174,18 @@ def _serialize_entity_list_response(
         items.append(
             _serialize_entity(
                 entity,
-                redacted=settings.safe_projections_enabled and decision.redacted,
+                redacted=decision.redacted,
+                redact_sensitive_fields=_entity_field_redactions_enabled(context),
             )
         )
     return items
 
 
 def _serialize_entity(
-    entity: EntityRecord, *, redacted: bool = False
+    entity: EntityRecord,
+    *,
+    redacted: bool = False,
+    redact_sensitive_fields: bool = False,
 ) -> dict[str, Any]:
     return {
         "id": entity.id,
@@ -1193,11 +1198,19 @@ def _serialize_entity(
         "allowed_purposes": [purpose.value for purpose in entity.allowed_purposes],
         "created_at": _format_datetime(entity.created_at),
         "updated_at": _format_datetime(entity.updated_at),
-        "person": _serialize_person_profile(entity.person, redacted=redacted),
+        "person": _serialize_person_profile(
+            entity.person,
+            redacted=redacted,
+            redact_sensitive_fields=redact_sensitive_fields,
+        ),
         "location": _serialize_location_profile(entity.location, redacted=redacted),
         "store": _serialize_store_profile(entity.store, redacted=redacted),
         "item": _serialize_item_profile(entity.item, redacted=redacted),
-        "redactions": _entity_redactions(entity, redacted=redacted),
+        "redactions": _entity_redactions(
+            entity,
+            redacted=redacted,
+            redact_sensitive_fields=redact_sensitive_fields,
+        ),
     }
 
 
@@ -1205,6 +1218,7 @@ def _serialize_person_profile(
     profile: PersonProfile | None,
     *,
     redacted: bool,
+    redact_sensitive_fields: bool,
 ) -> dict[str, Any] | None:
     if profile is None:
         return None
@@ -1213,19 +1227,30 @@ def _serialize_person_profile(
         "given_name": profile.given_name,
         "family_name": profile.family_name,
         "contact_methods": [
-            _serialize_contact_method(method, redacted=redacted)
+            _serialize_contact_method(
+                method,
+                redacted=redacted,
+                redact_sensitive_fields=redact_sensitive_fields,
+            )
             for method in profile.contact_methods
         ],
     }
 
 
 def _serialize_contact_method(
-    method: ContactMethod, *, redacted: bool
+    method: ContactMethod,
+    *,
+    redacted: bool,
+    redact_sensitive_fields: bool,
 ) -> dict[str, Any]:
+    method_redacted = redacted or (
+        redact_sensitive_fields
+        and method.sensitivity in {Sensitivity.RESTRICTED, Sensitivity.SECRET}
+    )
     return {
         "kind": method.kind.value,
         "label": method.label,
-        "value": None if redacted else method.value,
+        "value": None if method_redacted else method.value,
         "sensitivity": method.sensitivity.value,
     }
 
@@ -1288,12 +1313,26 @@ def _serialize_item_profile(
     }
 
 
-def _entity_redactions(entity: EntityRecord, *, redacted: bool) -> list[str]:
-    if not redacted:
-        return []
+def _entity_redactions(
+    entity: EntityRecord,
+    *,
+    redacted: bool,
+    redact_sensitive_fields: bool,
+) -> list[str]:
     redactions: list[str] = []
-    if entity.person is not None and entity.person.contact_methods:
+    has_sensitive_contact = (
+        entity.person is not None
+        and any(
+            method.sensitivity in {Sensitivity.RESTRICTED, Sensitivity.SECRET}
+            for method in entity.person.contact_methods
+        )
+    )
+    if entity.person is not None and entity.person.contact_methods and (
+        redacted or (redact_sensitive_fields and has_sensitive_contact)
+    ):
         redactions.append("contact_methods.value")
+    if not redacted:
+        return redactions
     if entity.location is not None:
         if entity.location.street_address or entity.location.postal_code:
             redactions.append("location.precise_address")
@@ -1333,18 +1372,15 @@ def _serialize_search_response(
         _audit_decision(settings, context, "observation", observation.id, decision)
         if not decision.allowed:
             continue
-        if settings.safe_projections_enabled:
-            items.append(
-                ProjectionService().project_observation(context, observation, decision)
-            )
-        else:
-            items.append(_serialize_search_result(result))
+        items.append(
+            ProjectionService().project_observation(context, observation, decision)
+        )
     return items
 
 
 def _use_access_pipeline(settings: MnemosyneSettings, request: Request) -> bool:
     del request
-    if not (settings.domain_policy_enabled or settings.safe_projections_enabled):
+    if not settings.access_policy_enabled:
         return False
     if not settings.access_context_headers_enabled:
         return False
@@ -1353,7 +1389,11 @@ def _use_access_pipeline(settings: MnemosyneSettings, request: Request) -> bool:
 
 def _metadata_response_enabled(request: Request) -> bool:
     settings = get_settings()
-    return settings.domain_policy_enabled and _use_access_pipeline(settings, request)
+    return settings.access_policy_enabled and _use_access_pipeline(settings, request)
+
+
+def _entity_field_redactions_enabled(context: AccessContext) -> bool:
+    return "mnemosyne.raw" not in context.scopes and "admin" not in context.roles
 
 
 def _access_context_from_request(
