@@ -135,6 +135,57 @@ def test_mcp_client_entity_tools_wrap_entity_registry() -> None:
     )
 
 
+def test_mcp_client_returns_existing_entity_without_profileless_upsert() -> None:
+    requests: list[tuple[str, str, Any]] = []
+
+    existing = {
+        "id": "ent_1",
+        "type": "person",
+        "label": "Fernando Crozetta",
+        "normalized_label": "fernando crozetta",
+        "scope": "personal",
+        "person": {
+            "display_name": "Fernando Crozetta",
+            "contact_methods": [
+                {
+                    "kind": "email",
+                    "value": "fernando@example.test",
+                    "sensitivity": "restricted",
+                }
+            ],
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, str(request.url), None))
+        if request.method == "POST":
+            return httpx.Response(500, json={"detail": "profile was overwritten"})
+        return httpx.Response(200, json=[existing])
+
+    http_client = httpx.Client(
+        base_url="http://mnemosyne.test",
+        transport=httpx.MockTransport(handler),
+    )
+    client = MnemosyneApiClient(
+        "http://mnemosyne.test",
+        http_client=http_client,
+    )
+
+    entity = client.create_entity(
+        entity_type="person",
+        label=" Fernando   Crozetta ",
+    )
+
+    assert entity == existing
+    assert requests == [
+        (
+            "GET",
+            "http://mnemosyne.test/entities?type=person&q=Fernando+Crozetta&scope=personal&limit=10",
+            None,
+        )
+    ]
+
+
 def test_mcp_client_preserves_base_url_path_prefix() -> None:
     urls: list[str] = []
 
@@ -163,6 +214,7 @@ def test_mcp_client_preserves_base_url_path_prefix() -> None:
     assert urls == [
         "https://mnemosyne.test/api/v1/observations",
         "https://mnemosyne.test/api/v1/entities?q=pilot&limit=25",
+        "https://mnemosyne.test/api/v1/entities?type=item&q=Pilot+Custom+823&scope=personal&limit=10",
         "https://mnemosyne.test/api/v1/entities",
         "https://mnemosyne.test/api/v1/entities/ent_1",
     ]

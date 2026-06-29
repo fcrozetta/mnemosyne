@@ -116,6 +116,15 @@ class MnemosyneApiClient:
         allowed_purposes: list[str] | None = None,
         profile: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        if profile is None:
+            existing = self._find_exact_entity(
+                entity_type=entity_type,
+                label=label,
+                scope=scope,
+            )
+            if existing is not None:
+                return existing
+
         payload = _without_none(
             {
                 "type": entity_type,
@@ -131,6 +140,29 @@ class MnemosyneApiClient:
 
     def get_entity(self, *, entity_id: str) -> dict[str, Any]:
         return self._request("GET", f"entities/{entity_id}")
+
+    def _find_exact_entity(
+        self,
+        *,
+        entity_type: str,
+        label: str,
+        scope: str,
+    ) -> dict[str, Any] | None:
+        normalized_label = _normalize_label(label)
+        query_label = " ".join(label.split())
+        for entity in self.find_entities(
+            entity_type=entity_type,
+            query=query_label,
+            scope=scope,
+            limit=10,
+        ):
+            if (
+                entity.get("type") == entity_type
+                and entity.get("scope") == scope
+                and entity.get("normalized_label") == normalized_label
+            ):
+                return entity
+        return None
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         if path.startswith("/"):
@@ -174,6 +206,10 @@ def _access_headers_from_env() -> dict[str, str]:
 
 def _without_none(data: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in data.items() if value is not None}
+
+
+def _normalize_label(label: str) -> str:
+    return " ".join(label.split()).lower()
 
 
 def _error_message(response: httpx.Response) -> str:

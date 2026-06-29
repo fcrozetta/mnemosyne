@@ -85,9 +85,11 @@ def build_mcp_server(
     @server.tool(
         description=(
             "Create or update one curated entity node. Search with find_entities "
-            "first when the caller is not sure the entity is new. The optional "
-            "profile object is placed under the entity type key, e.g. person, "
-            "location, store, or item."
+            "first when the caller is not sure the entity is new. When profile "
+            "is omitted and an exact entity already exists, this returns the "
+            "existing entity instead of sending a profile-less upsert. The "
+            "optional profile object is placed under the entity type key, e.g. "
+            "person, location, store, or item."
         )
     )
     def create_entity(
