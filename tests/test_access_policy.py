@@ -99,3 +99,55 @@ def test_raw_projection_requires_raw_scope_or_admin() -> None:
 
     assert decision.allowed is False
     assert decision.reason_code == "raw_projection_requires_scope"
+
+
+def test_allowed_purposes_are_enforced_before_projection_rules() -> None:
+    context = AccessContext(
+        client_app="finance",
+        service_identity="finance-api",
+        purpose=Purpose.ACCOUNTING,
+        scopes=frozenset({"mnemosyne.query", "finance.read"}),
+        requested_projection=ProjectionName.ACCOUNTING_VIEW,
+    )
+    revision = _revision(
+        "Bought Losartan medication at Pharmacy X.",
+        sensitivity=Sensitivity.PERSONAL,
+    )
+    revision = ObservationRevision(
+        id=revision.id,
+        observation=revision.observation,
+        version=revision.version,
+        content=revision.content,
+        content_format=revision.content_format,
+        observed_at=revision.observed_at,
+        created_at=revision.created_at,
+        domain=revision.domain,
+        sensitivity=revision.sensitivity,
+        subject=revision.subject,
+        allowed_purposes=(Purpose.MEDICATION_MANAGEMENT,),
+    )
+
+    decision = AccessPolicy().can_disclose_revision(context, revision)
+
+    assert decision.allowed is False
+    assert decision.reason_code == "purpose_not_allowed"
+
+
+def test_mutation_requires_query_and_write_scopes() -> None:
+    policy = AccessPolicy()
+    revision = _revision("Bought medicine.")
+    missing_query = AccessContext(scopes=frozenset({"mnemosyne.write"}))
+    missing_write = AccessContext(scopes=frozenset({"mnemosyne.query"}))
+    allowed = AccessContext(
+        scopes=frozenset({"mnemosyne.query", "mnemosyne.write"})
+    )
+
+    assert (
+        policy.can_mutate_observation(missing_query, revision).reason_code
+        == "missing_mnemosyne_query_scope"
+    )
+    assert (
+        policy.can_mutate_observation(missing_write, revision).reason_code
+        == "missing_mnemosyne_write_scope"
+    )
+    assert policy.can_mutate_observation(allowed, revision).allowed is True

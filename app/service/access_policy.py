@@ -7,6 +7,7 @@ from app.models.access import (
     Purpose,
     Sensitivity,
 )
+from app.models.entities import CreateEntityInput, EntityRecord
 from app.models.observations import ObservationRevision
 
 _SENSITIVE_HEALTH_DENY_MARKERS = (
@@ -39,11 +40,91 @@ class AccessPolicy:
             return PolicyDecision(False, "missing_mnemosyne_query_scope")
         return PolicyDecision(True, "query_scope_allowed")
 
+    def can_mutate_observation(
+        self,
+        context: AccessContext,
+        revision: ObservationRevision,
+    ) -> PolicyDecision:
+        del revision
+        query_decision = self.can_query_mnemosyne(context)
+        if not query_decision.allowed:
+            return query_decision
+        if "mnemosyne.write" not in context.scopes and "admin" not in context.roles:
+            return PolicyDecision(False, "missing_mnemosyne_write_scope")
+        return PolicyDecision(True, "write_scope_allowed")
+
+    def can_mutate_entity(
+        self,
+        context: AccessContext,
+        entity: CreateEntityInput,
+    ) -> PolicyDecision:
+        del entity
+        query_decision = self.can_query_mnemosyne(context)
+        if not query_decision.allowed:
+            return query_decision
+        if "mnemosyne.write" not in context.scopes and "admin" not in context.roles:
+            return PolicyDecision(False, "missing_mnemosyne_write_scope")
+        return PolicyDecision(True, "write_scope_allowed")
+
+    def can_disclose_entity(
+        self,
+        context: AccessContext,
+        entity: EntityRecord,
+    ) -> PolicyDecision:
+        return self._can_disclose_entity_metadata(
+            context,
+            allowed_purposes=entity.allowed_purposes,
+            sensitivity=entity.sensitivity,
+        )
+
+    def can_disclose_new_entity(
+        self,
+        context: AccessContext,
+        entity: CreateEntityInput,
+    ) -> PolicyDecision:
+        return self._can_disclose_entity_metadata(
+            context,
+            allowed_purposes=entity.allowed_purposes,
+            sensitivity=entity.sensitivity,
+        )
+
+    def _can_disclose_entity_metadata(
+        self,
+        context: AccessContext,
+        *,
+        allowed_purposes: tuple[Purpose, ...],
+        sensitivity: Sensitivity,
+    ) -> PolicyDecision:
+        if (
+            "admin" not in context.roles
+            and allowed_purposes
+            and context.purpose not in allowed_purposes
+        ):
+            return PolicyDecision(False, "purpose_not_allowed")
+        if sensitivity in {Sensitivity.SECRET, Sensitivity.RESTRICTED}:
+            if "admin" in context.roles:
+                return PolicyDecision(True, "admin_sensitive_allowed")
+            return PolicyDecision(False, "sensitivity_denied")
+        if sensitivity == Sensitivity.CONFIDENTIAL and (
+            "mnemosyne.raw" not in context.scopes and "admin" not in context.roles
+        ):
+            return PolicyDecision(
+                True, "confidential_entity_summary_allowed", redacted=True
+            )
+        return PolicyDecision(True, "entity_projection_allowed")
+
     def can_disclose_revision(
         self,
         context: AccessContext,
         revision: ObservationRevision,
     ) -> PolicyDecision:
+        if (
+            "admin" not in context.roles
+            and revision.allowed_purposes
+            and context.purpose not in revision.allowed_purposes
+        ):
+            return PolicyDecision(False, "purpose_not_allowed")
+
         if context.requested_projection == ProjectionName.RAW_OBSERVATION:
             if "mnemosyne.raw" in context.scopes or "admin" in context.roles:
                 return PolicyDecision(True, "raw_scope_allowed")

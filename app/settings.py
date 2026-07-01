@@ -23,11 +23,15 @@ class MnemosyneSettings:
 
     @classmethod
     def from_env(cls) -> "MnemosyneSettings":
-        return cls(
-            domain_policy_enabled=parse_bool_env(
-                os.getenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED"),
-                name="MNEMOSYNE_DOMAIN_POLICY_ENABLED",
+        domain_policy_enabled = parse_bool_env(
+            os.getenv(
+                "MNEMOSYNE_DOMAIN_POLICY_ENABLED",
+                os.getenv("MNEMOSYNE_ACCESS_POLICY_ENABLED"),
             ),
+            name="MNEMOSYNE_DOMAIN_POLICY_ENABLED",
+        )
+        return cls(
+            domain_policy_enabled=domain_policy_enabled,
             access_context_headers_enabled=parse_bool_env(
                 os.getenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED"),
                 name="MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED",

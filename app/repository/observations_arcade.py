@@ -6,6 +6,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from app.models.entities import (
+    AnimalProfile,
+    ContactMethod,
+    ContactMethodKind,
+    CreateEntityInput,
+    EntityNotFoundError,
+    EntityRecord,
+    ItemProfile,
+    LocationProfile,
+    PersonProfile,
+    StoreProfile,
+)
 from app.models.observations import (
     CreateObservationInput,
     Domain,
@@ -97,6 +109,160 @@ class ArcadeObservationsRepository(ObservationsRepository):
         )
         self.runtime.command(script, language="sqlscript", params=params)
         return self._get_observation(observation_id)
+
+    def create_entity(self, entity: CreateEntityInput) -> EntityRecord:
+        now = utc_now()
+        entity_id = self.entity_id_factory()
+        entity_type = _entity_type(entity.type)
+        row = {
+            "id": entity_id,
+            "entity_type": entity.type.value,
+            "label": entity.label,
+            "normalized_label": entity.normalized_label,
+            "resolution_status": ResolutionStatus.RESOLVED.value,
+            "scope": entity.scope,
+            "sensitivity": entity.sensitivity.value,
+            "allowed_purposes": _allowed_purposes_value(entity.allowed_purposes),
+            "created_at": _datetime_value(now),
+            "updated_at": _datetime_value(now),
+            "display_name": entity.person.display_name if entity.person else None,
+            "given_name": entity.person.given_name if entity.person else None,
+            "family_name": entity.person.family_name if entity.person else None,
+            "contact_methods": _contact_methods_value(entity.person.contact_methods)
+            if entity.person
+            else None,
+            "location_kind": entity.location.location_kind if entity.location else None,
+            "street_address": entity.location.street_address
+            if entity.location
+            else None,
+            "postal_code": entity.location.postal_code if entity.location else None,
+            "locality": entity.location.locality if entity.location else None,
+            "region": entity.location.region if entity.location else None,
+            "country": entity.location.country if entity.location else None,
+            "latitude": entity.location.latitude if entity.location else None,
+            "longitude": entity.location.longitude if entity.location else None,
+            "store_kind": entity.store.store_kind if entity.store else None,
+            "website": entity.store.website if entity.store else None,
+            "categories": _string_tuple_value(entity.store.categories)
+            if entity.store
+            else None,
+            "country_scope": entity.store.country_scope if entity.store else None,
+            "physical_store_status": entity.store.physical_store_status
+            if entity.store
+            else None,
+            "source_urls": _string_tuple_value(entity.store.source_urls)
+            if entity.store
+            else None,
+            "reference_notes": entity.store.reference_notes if entity.store else None,
+            "item_kind": entity.item.item_kind if entity.item else None,
+            "category": entity.item.category if entity.item else None,
+            "subcategory": entity.item.subcategory if entity.item else None,
+            "brand": entity.item.brand if entity.item else None,
+            "model": entity.item.model if entity.item else None,
+            "variant": entity.item.variant if entity.item else None,
+            "color": entity.item.color if entity.item else None,
+            "size": entity.item.size if entity.item else None,
+            "serial_number": entity.item.serial_number if entity.item else None,
+            "identifiers": _string_tuple_value(entity.item.identifiers)
+            if entity.item
+            else None,
+            "animal_kind": entity.animal.animal_kind if entity.animal else None,
+            "species": entity.animal.species if entity.animal else None,
+            "breed": entity.animal.breed if entity.animal else None,
+            "sex": entity.animal.sex if entity.animal else None,
+            "animal_color": entity.animal.color if entity.animal else None,
+            "date_of_birth": entity.animal.date_of_birth if entity.animal else None,
+            "microchip_id": entity.animal.microchip_id if entity.animal else None,
+            "animal_identifiers": _string_tuple_value(entity.animal.identifiers)
+            if entity.animal
+            else None,
+            "animal_reference_notes": entity.animal.reference_notes
+            if entity.animal
+            else None,
+        }
+        self.runtime.command(
+            (
+                f"UPDATE {entity_type} SET id = ifnull(id, :id), "
+                "entity_type = :entity_type, label = :label, "
+                "normalized_label = :normalized_label, "
+                "resolution_status = :resolution_status, scope = :scope, "
+                "sensitivity = :sensitivity, allowed_purposes = :allowed_purposes, "
+                "created_at = ifnull(created_at, :created_at), "
+                "updated_at = :updated_at, "
+                "display_name = :display_name, given_name = :given_name, "
+                "family_name = :family_name, contact_methods = :contact_methods, "
+                "location_kind = :location_kind, street_address = :street_address, "
+                "postal_code = :postal_code, locality = :locality, region = :region, "
+                "country = :country, latitude = :latitude, longitude = :longitude, "
+                "store_kind = :store_kind, website = :website, "
+                "categories = :categories, country_scope = :country_scope, "
+                "physical_store_status = :physical_store_status, "
+                "source_urls = :source_urls, reference_notes = :reference_notes, "
+                "item_kind = :item_kind, category = :category, "
+                "subcategory = :subcategory, brand = :brand, model = :model, "
+                "variant = :variant, color = :color, size = :size, "
+                "serial_number = :serial_number, identifiers = :identifiers, "
+                "animal_kind = :animal_kind, species = :species, breed = :breed, "
+                "sex = :sex, animal_color = :animal_color, "
+                "date_of_birth = :date_of_birth, microchip_id = :microchip_id, "
+                "animal_identifiers = :animal_identifiers, "
+                "animal_reference_notes = :animal_reference_notes "
+                "UPSERT WHERE entity_type = :entity_type "
+                "AND normalized_label = :normalized_label AND scope = :scope"
+            ),
+            params=row,
+        )
+        rows = _records(
+            self.runtime.query(
+                "SELECT FROM Entity WHERE entity_type = :entity_type "
+                "AND normalized_label = :normalized_label AND scope = :scope",
+                params={
+                    "entity_type": entity.type.value,
+                    "normalized_label": entity.normalized_label,
+                    "scope": entity.scope,
+                },
+            )
+        )
+        if not rows:
+            raise EntityNotFoundError(entity_id)
+        return _entity_record_from_row(rows[0])
+
+    def get_entity(self, id: str) -> EntityRecord:
+        rows = _records(
+            self.runtime.query("SELECT FROM Entity WHERE id = :id", params={"id": id})
+        )
+        if not rows:
+            raise EntityNotFoundError(id)
+        return _entity_record_from_row(rows[0])
+
+    def list_entities(
+        self,
+        *,
+        entity_type: str | None = None,
+        scope: str | None = None,
+        query: str | None = None,
+        limit: int = 25,
+    ) -> tuple[EntityRecord, ...]:
+        clauses = ["id IS NOT NULL"]
+        params: dict[str, object] = {"limit": limit}
+        if entity_type is not None:
+            clauses.append("entity_type = :entity_type")
+            params["entity_type"] = entity_type
+        if scope is not None:
+            clauses.append("scope = :scope")
+            params["scope"] = scope
+        if query is not None and query.strip():
+            clauses.append("label.toLowerCase() LIKE :query")
+            params["query"] = f"%{query.casefold().strip()}%"
+        rows = _records(
+            self.runtime.query(
+                "SELECT FROM Entity WHERE "
+                + " AND ".join(clauses)
+                + " ORDER BY updated_at DESC LIMIT :limit",
+                params=params,
+            )
+        )
+        return tuple(_entity_record_from_row(row) for row in rows)
 
     def get_observation(self, observation_id: str) -> Observation:
         return self._get_observation(observation_id)
@@ -534,9 +700,7 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 "domain": latest.domain.value,
                 "sensitivity": latest.sensitivity.value,
                 "subject": latest.subject,
-                "allowed_purposes": _allowed_purposes_value(
-                    latest.allowed_purposes
-                ),
+                "allowed_purposes": _allowed_purposes_value(latest.allowed_purposes),
                 "observed_at": _datetime_value(observed_at),
                 "created_at": _datetime_value(created_at),
             },
@@ -605,17 +769,21 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 f"entity_type = :entity_type_{index}, "
                 f"label = :entity_label_{index}, "
                 f"normalized_label = :normalized_label_{index}, "
-                f"resolution_status = 'unresolved', "
+                "resolution_status = ifnull(resolution_status, 'unresolved'), "
+                "scope = ifnull(scope, 'general'), "
+                "sensitivity = ifnull(sensitivity, 'personal'), "
                 f"created_at = ifnull(created_at, :created_at), "
-                f"updated_at = :created_at UPSERT WHERE "
+                f"updated_at = ifnull(updated_at, :created_at) UPSERT WHERE "
                 f"entity_type = :entity_type_{index} "
-                f"AND normalized_label = :normalized_label_{index};"
+                f"AND normalized_label = :normalized_label_{index} "
+                "AND scope = 'general';"
             ),
             (
                 "CREATE EDGE Mentions FROM "
                 "(SELECT FROM Revision WHERE id = :revision_id) TO "
                 f"(SELECT FROM Entity WHERE entity_type = :entity_type_{index} "
-                f"AND normalized_label = :normalized_label_{index}) "
+                f"AND normalized_label = :normalized_label_{index} "
+                "AND scope = 'general') "
                 f"IF NOT EXISTS CONTENT :mention_edge_{index};"
             ),
         )
@@ -654,17 +822,22 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 f"entity_type = :entity_type_{index}, "
                 f"label = :entity_label_{index}, "
                 f"normalized_label = :normalized_label_{index}, "
-                f"resolution_status = :resolution_status_{index}, "
+                "resolution_status = "
+                f"ifnull(resolution_status, :resolution_status_{index}), "
+                "scope = ifnull(scope, 'general'), "
+                "sensitivity = ifnull(sensitivity, 'personal'), "
                 f"created_at = ifnull(created_at, :created_at), "
-                f"updated_at = :created_at UPSERT WHERE "
+                f"updated_at = ifnull(updated_at, :created_at) UPSERT WHERE "
                 f"entity_type = :entity_type_{index} "
-                f"AND normalized_label = :normalized_label_{index};"
+                f"AND normalized_label = :normalized_label_{index} "
+                "AND scope = 'general';"
             ),
             (
                 "CREATE EDGE Mentions FROM "
                 "(SELECT FROM Revision WHERE id = :revision_id) TO "
                 f"(SELECT FROM Entity WHERE entity_type = :entity_type_{index} "
-                f"AND normalized_label = :normalized_label_{index}) "
+                f"AND normalized_label = :normalized_label_{index} "
+                "AND scope = 'general') "
                 f"IF NOT EXISTS CONTENT :mention_edge_{index};"
             ),
         )
@@ -722,10 +895,106 @@ def _entity_type(entity_type: EntityType) -> str:
     return {
         EntityType.PERSON: "Person",
         EntityType.LOCATION: "Location",
+        EntityType.STORE: "Store",
         EntityType.ITEM: "Item",
+        EntityType.ANIMAL: "Animal",
         EntityType.TOPIC: "Topic",
         EntityType.OTHER: "UnknownEntity",
     }[entity_type]
+
+
+def _entity_record_from_row(row: dict[str, Any]) -> EntityRecord:
+    entity_type = EntityType(str(row["entity_type"]))
+    return EntityRecord(
+        id=str(row["id"]),
+        type=entity_type,
+        label=str(row["label"]),
+        normalized_label=str(row["normalized_label"]),
+        resolution_status=ResolutionStatus(
+            str(row.get("resolution_status", ResolutionStatus.UNRESOLVED.value))
+        ),
+        scope=str(row.get("scope") or "general"),
+        sensitivity=Sensitivity(
+            str(row.get("sensitivity", Sensitivity.PERSONAL.value))
+        ),
+        allowed_purposes=_parse_allowed_purposes(row.get("allowed_purposes")),
+        created_at=_datetime(row["created_at"]),
+        updated_at=_datetime(row["updated_at"]),
+        person=_person_record_from_row(row)
+        if entity_type == EntityType.PERSON
+        else None,
+        location=_location_record_from_row(row)
+        if entity_type == EntityType.LOCATION
+        else None,
+        store=_store_record_from_row(row) if entity_type == EntityType.STORE else None,
+        item=_item_record_from_row(row) if entity_type == EntityType.ITEM else None,
+        animal=_animal_record_from_row(row)
+        if entity_type == EntityType.ANIMAL
+        else None,
+    )
+
+
+def _person_record_from_row(row: dict[str, Any]) -> PersonProfile:
+    return PersonProfile(
+        display_name=_optional_str(row.get("display_name")),
+        given_name=_optional_str(row.get("given_name")),
+        family_name=_optional_str(row.get("family_name")),
+        contact_methods=_parse_contact_methods(row.get("contact_methods")),
+    )
+
+
+def _location_record_from_row(row: dict[str, Any]) -> LocationProfile:
+    return LocationProfile(
+        location_kind=_optional_str(row.get("location_kind")),
+        street_address=_optional_str(row.get("street_address")),
+        postal_code=_optional_str(row.get("postal_code")),
+        locality=_optional_str(row.get("locality")),
+        region=_optional_str(row.get("region")),
+        country=_optional_str(row.get("country")),
+        latitude=_optional_float(row.get("latitude")),
+        longitude=_optional_float(row.get("longitude")),
+    )
+
+
+def _store_record_from_row(row: dict[str, Any]) -> StoreProfile:
+    return StoreProfile(
+        store_kind=_optional_str(row.get("store_kind")),
+        website=_optional_str(row.get("website")),
+        categories=_parse_string_tuple(row.get("categories")),
+        country_scope=_optional_str(row.get("country_scope")),
+        physical_store_status=_optional_str(row.get("physical_store_status")),
+        source_urls=_parse_string_tuple(row.get("source_urls")),
+        reference_notes=_optional_str(row.get("reference_notes")),
+    )
+
+
+def _item_record_from_row(row: dict[str, Any]) -> ItemProfile:
+    return ItemProfile(
+        item_kind=_optional_str(row.get("item_kind")),
+        category=_optional_str(row.get("category")),
+        subcategory=_optional_str(row.get("subcategory")),
+        brand=_optional_str(row.get("brand")),
+        model=_optional_str(row.get("model")),
+        variant=_optional_str(row.get("variant")),
+        color=_optional_str(row.get("color")),
+        size=_optional_str(row.get("size")),
+        serial_number=_optional_str(row.get("serial_number")),
+        identifiers=_parse_string_tuple(row.get("identifiers")),
+    )
+
+
+def _animal_record_from_row(row: dict[str, Any]) -> AnimalProfile:
+    return AnimalProfile(
+        animal_kind=_optional_str(row.get("animal_kind")),
+        species=_optional_str(row.get("species")),
+        breed=_optional_str(row.get("breed")),
+        sex=_optional_str(row.get("sex")),
+        color=_optional_str(row.get("animal_color")),
+        date_of_birth=_optional_str(row.get("date_of_birth")),
+        microchip_id=_optional_str(row.get("microchip_id")),
+        identifiers=_parse_string_tuple(row.get("animal_identifiers")),
+        reference_notes=_optional_str(row.get("animal_reference_notes")),
+    )
 
 
 def _records(result: object) -> list[dict[str, Any]]:
@@ -762,8 +1031,32 @@ def _optional_str(value: object) -> str | None:
     return str(value)
 
 
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(str(value))
+
+
 def _allowed_purposes_value(purposes: tuple[Purpose, ...]) -> str:
     return json.dumps([purpose.value for purpose in purposes])
+
+
+def _string_tuple_value(values: tuple[str, ...]) -> str:
+    return json.dumps(list(values))
+
+
+def _parse_string_tuple(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, list):
+        return tuple(str(item) for item in value)
+    try:
+        parsed = json.loads(str(value))
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(parsed, list):
+        return ()
+    return tuple(str(item) for item in parsed)
 
 
 def _parse_allowed_purposes(value: object) -> tuple[Purpose, ...]:
@@ -778,6 +1071,48 @@ def _parse_allowed_purposes(value: object) -> tuple[Purpose, ...]:
     if not isinstance(parsed, list):
         return ()
     return tuple(Purpose(str(item)) for item in parsed)
+
+
+def _contact_methods_value(methods: tuple[Any, ...]) -> str:
+    return json.dumps(
+        [
+            {
+                "kind": method.kind.value,
+                "value": method.value,
+                "label": method.label,
+                "sensitivity": method.sensitivity.value,
+            }
+            for method in methods
+        ]
+    )
+
+
+def _parse_contact_methods(value: object) -> tuple[ContactMethod, ...]:
+    if value is None:
+        return ()
+    try:
+        parsed = json.loads(str(value))
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(parsed, list):
+        return ()
+    methods: list[ContactMethod] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        methods.append(
+            ContactMethod(
+                kind=ContactMethodKind(
+                    str(item.get("kind", ContactMethodKind.OTHER.value))
+                ),
+                value=str(item.get("value", "")),
+                label=_optional_str(item.get("label")),
+                sensitivity=Sensitivity(
+                    str(item.get("sensitivity", Sensitivity.PERSONAL.value))
+                ),
+            )
+        )
+    return tuple(methods)
 
 
 def _revision_mentions_topic(revision: ObservationRevision, topic: str) -> bool:

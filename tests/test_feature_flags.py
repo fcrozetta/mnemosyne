@@ -29,6 +29,15 @@ def test_feature_flags_parse_truthy_values(monkeypatch) -> None:
     assert settings.access_audit_enabled is True
 
 
+def test_legacy_access_policy_flag_enables_domain_policy(monkeypatch) -> None:
+    monkeypatch.delenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", raising=False)
+    monkeypatch.setenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", "true")
+
+    settings = MnemosyneSettings.from_env()
+
+    assert settings.domain_policy_enabled is True
+
+
 def test_parse_bool_rejects_unknown_values() -> None:
     try:
         parse_bool_env("maybe", name="MNEMOSYNE_DOMAIN_POLICY_ENABLED")

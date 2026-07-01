@@ -12,12 +12,14 @@ from app.main import create_app
 def _client(monkeypatch, *, flags: bool = False) -> TestClient:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     if flags:
-        monkeypatch.setenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", "true")
+        monkeypatch.setenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", "true")
+        monkeypatch.setenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", "true")
     else:
-        monkeypatch.delenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", raising=False)
+        monkeypatch.delenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", raising=False)
+        monkeypatch.delenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", raising=False)
     reset_observations_repository_cache()
     reset_settings_cache()
@@ -28,7 +30,7 @@ def _client(monkeypatch, *, flags: bool = False) -> TestClient:
 def _owner_headers(*, extra_scopes: tuple[str, ...] = ()) -> dict[str, str]:
     scopes = " ".join(("mnemosyne.query", *extra_scopes))
     return {
-        "X-Mnemosyne-Actor-User": "Sample User",
+        "X-Mnemosyne-Actor-User": "Fernando",
         "X-Mnemosyne-Client-App": "contacts",
         "X-Mnemosyne-Service-Identity": "contacts-api",
         "X-Mnemosyne-Purpose": "recall",
@@ -222,6 +224,49 @@ def test_create_classified_item_entities(monkeypatch) -> None:
     } == {"possessions/pens", "possessions/electronics"}
 
 
+def test_create_pet_animal_entity(monkeypatch) -> None:
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/entities",
+        json={
+            "type": "animal",
+            "label": "Nina",
+            "scope": "pets",
+            "sensitivity": "confidential",
+            "animal": {
+                "animal_kind": "pet",
+                "species": "dog",
+                "breed": "mixed",
+                "sex": "female",
+                "color": "black",
+                "date_of_birth": "2020-05-01",
+                "microchip_id": "985141000000000",
+                "identifiers": ["vet-record-nina"],
+                "reference_notes": "Needs soft handling at the vet.",
+            },
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["type"] == "animal"
+    assert body["scope"] == "pets"
+    assert body["animal"] == {
+        "animal_kind": "pet",
+        "species": "dog",
+        "breed": "mixed",
+        "sex": "female",
+        "color": "black",
+        "date_of_birth": "2020-05-01",
+        "microchip_id": "985141000000000",
+        "identifiers": ["vet-record-nina"],
+        "reference_notes": "Needs soft handling at the vet.",
+    }
+    listed = client.get("/entities", params={"type": "animal", "q": "nina"})
+    assert [item["id"] for item in listed.json()] == [body["id"]]
+
+
 def test_entity_scope_allows_same_label_in_different_scopes(monkeypatch) -> None:
     client = _client(monkeypatch)
 
@@ -270,6 +315,7 @@ def test_entity_policy_redacts_confidential_contact_and_location_details(
     client = _client(monkeypatch, flags=True)
     person = client.post(
         "/entities",
+        headers=_owner_headers(extra_scopes=("mnemosyne.write",)),
         json={
             "type": "person",
             "label": "Mario Rossi",
@@ -282,6 +328,7 @@ def test_entity_policy_redacts_confidential_contact_and_location_details(
     ).json()
     location = client.post(
         "/entities",
+        headers=_owner_headers(extra_scopes=("mnemosyne.write",)),
         json={
             "type": "location",
             "label": "Mario's house",
@@ -308,13 +355,14 @@ def test_entity_policy_redacts_confidential_contact_and_location_details(
     assert location_response.json()["location"]["street_address"] is None
     assert location_response.json()["location"]["latitude"] is None
     assert "location.precise_address" in location_response.json()["redactions"]
-    assert len(get_access_audit_service().list_events()) == 2
+    assert len(get_access_audit_service().list_events()) == 6
 
 
 def test_entity_raw_scope_discloses_confidential_details(monkeypatch) -> None:
     client = _client(monkeypatch, flags=True)
     person = client.post(
         "/entities",
+        headers=_owner_headers(extra_scopes=("mnemosyne.write",)),
         json={
             "type": "person",
             "label": "Mario Rossi",
@@ -338,15 +386,68 @@ def test_entity_raw_scope_discloses_confidential_details(monkeypatch) -> None:
     assert response.json()["redactions"] == []
 
 
-def test_entity_policy_redacts_restricted_contact_on_personal_entity(
+def test_entity_policy_denies_secret_entity_without_admin(monkeypatch) -> None:
+    client = _client(monkeypatch, flags=True)
+    created = client.post(
+        "/entities",
+        headers={
+            **_owner_headers(extra_scopes=("mnemosyne.write",)),
+            "X-Mnemosyne-Roles": "admin",
+        },
+        json={"type": "location", "label": "Safe house", "sensitivity": "secret"},
+    ).json()
+
+    response = client.get(f"/entities/{created['id']}", headers=_owner_headers())
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason_code"] == "sensitivity_denied"
+
+def test_create_entity_requires_write_scope_when_policy_enabled(monkeypatch) -> None:
+    client = _client(monkeypatch, flags=True)
+
+    response = client.post(
+        "/entities",
+        headers=_owner_headers(),
+        json={"type": "person", "label": "No Write Scope"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason_code"] == "missing_mnemosyne_write_scope"
+
+
+def test_create_entity_denies_without_persisting_undisclosable_entity(
     monkeypatch,
 ) -> None:
     client = _client(monkeypatch, flags=True)
+
+    response = client.post(
+        "/entities",
+        headers=_owner_headers(extra_scopes=("mnemosyne.write",)),
+        json={"type": "person", "label": "Hidden Seed", "sensitivity": "secret"},
+    )
+    listed = client.get(
+        "/entities",
+        params={"q": "hidden seed"},
+        headers={
+            **_owner_headers(extra_scopes=("mnemosyne.raw",)),
+            "X-Mnemosyne-Roles": "admin",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason_code"] == "sensitivity_denied"
+    assert listed.status_code == 200
+    assert listed.json() == []
+
+
+def test_restricted_contact_method_redacts_without_raw_scope(monkeypatch) -> None:
+    client = _client(monkeypatch, flags=True)
     person = client.post(
         "/entities",
+        headers=_owner_headers(extra_scopes=("mnemosyne.write",)),
         json={
             "type": "person",
-            "label": "Mario Rossi",
+            "label": "Personal Contact",
             "scope": "contacts",
             "sensitivity": "personal",
             "person": {
@@ -366,16 +467,3 @@ def test_entity_policy_redacts_restricted_contact_on_personal_entity(
     assert response.status_code == 200
     assert response.json()["person"]["contact_methods"][0]["value"] is None
     assert "contact_methods.value" in response.json()["redactions"]
-
-
-def test_entity_policy_denies_secret_entity_without_admin(monkeypatch) -> None:
-    client = _client(monkeypatch, flags=True)
-    created = client.post(
-        "/entities",
-        json={"type": "location", "label": "Safe house", "sensitivity": "secret"},
-    ).json()
-
-    response = client.get(f"/entities/{created['id']}", headers=_owner_headers())
-
-    assert response.status_code == 403
-    assert response.json()["detail"]["reason_code"] == "sensitivity_denied"

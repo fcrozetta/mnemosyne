@@ -6,6 +6,32 @@ from app.models.access import Purpose, Sensitivity
 from app.models.observations import EntityType, ResolutionStatus, normalize_label
 
 
+@dataclass(frozen=True, slots=True)
+class AnimalProfileInput:
+    animal_kind: str | None = None
+    species: str | None = None
+    breed: str | None = None
+    sex: str | None = None
+    color: str | None = None
+    date_of_birth: str | None = None
+    microchip_id: str | None = None
+    identifiers: tuple[str, ...] = ()
+    reference_notes: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AnimalProfile:
+    animal_kind: str | None = None
+    species: str | None = None
+    breed: str | None = None
+    sex: str | None = None
+    color: str | None = None
+    date_of_birth: str | None = None
+    microchip_id: str | None = None
+    identifiers: tuple[str, ...] = ()
+    reference_notes: str | None = None
+
+
 class ContactMethodKind(StrEnum):
     PHONE = "phone"
     EMAIL = "email"
@@ -131,6 +157,7 @@ class CreateEntityInput:
     location: LocationProfileInput | None = None
     store: StoreProfileInput | None = None
     item: ItemProfileInput | None = None
+    animal: AnimalProfileInput | None = None
 
     @property
     def normalized_label(self) -> str:
@@ -153,6 +180,7 @@ class EntityRecord:
     location: LocationProfile | None = None
     store: StoreProfile | None = None
     item: ItemProfile | None = None
+    animal: AnimalProfile | None = None
 
 
 class EntityNotFoundError(LookupError):
@@ -170,6 +198,8 @@ class InvalidEntityRequestError(ValueError):
 
 
 __all__ = [
+    "AnimalProfile",
+    "AnimalProfileInput",
     "ContactMethod",
     "ContactMethodInput",
     "ContactMethodKind",
