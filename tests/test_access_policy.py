@@ -23,7 +23,7 @@ def _revision(content: str, sensitivity: Sensitivity = Sensitivity.CONFIDENTIAL)
         created_at=now,
         domain=Domain.HEALTH,
         sensitivity=sensitivity,
-        subject="Sample User",
+        subject="Fernando",
         allowed_purposes=(Purpose.ACCOUNTING, Purpose.MEDICATION_MANAGEMENT),
     )
 

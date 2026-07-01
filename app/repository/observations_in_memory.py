@@ -4,6 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from app.models.entities import (
+    AnimalProfile,
+    AnimalProfileInput,
     ContactMethod,
     ContactMethodInput,
     CreateEntityInput,
@@ -136,6 +138,7 @@ class InMemoryObservationsRepository(ObservationsRepository):
             location=_location_profile(entity.location),
             store=_store_profile(entity.store),
             item=_item_profile(entity.item),
+            animal=_animal_profile(entity.animal),
         )
         self.entity_records_by_id[record.id] = record
         self.entity_records_by_identity[identity] = record
@@ -373,6 +376,22 @@ class InMemoryObservationsRepository(ObservationsRepository):
         )
         self.sources_by_identity[source_input.identity] = created
         return created
+
+
+def _animal_profile(profile: AnimalProfileInput | None) -> AnimalProfile | None:
+    if profile is None:
+        return None
+    return AnimalProfile(
+        animal_kind=profile.animal_kind,
+        species=profile.species,
+        breed=profile.breed,
+        sex=profile.sex,
+        color=profile.color,
+        date_of_birth=profile.date_of_birth,
+        microchip_id=profile.microchip_id,
+        identifiers=profile.identifiers,
+        reference_notes=profile.reference_notes,
+    )
 
 
 def _revision_mentions_topic(revision: ObservationRevision, topic: str) -> bool:

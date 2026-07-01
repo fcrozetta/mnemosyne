@@ -20,6 +20,8 @@ from app.models.access import (
     Sensitivity,
 )
 from app.models.entities import (
+    AnimalProfile,
+    AnimalProfileInput,
     ContactMethod,
     ContactMethodInput,
     ContactMethodKind,
@@ -195,6 +197,45 @@ def create_app() -> FastAPI:
         body: Any = Body(...),
     ) -> dict[str, Any]:
         entity_input = _parse_create_entity_input(body)
+        settings = get_settings()
+        if _use_access_pipeline(settings, request):
+            context = _access_context_from_request(request, settings)
+            mutation_decision = AccessPolicy().can_mutate_entity(context, entity_input)
+            if not mutation_decision.allowed:
+                _audit_decision(
+                    settings,
+                    context,
+                    "entity_mutation",
+                    entity_input.normalized_label,
+                    mutation_decision,
+                )
+                _raise_access_denied(mutation_decision)
+            decision = AccessPolicy().can_disclose_new_entity(context, entity_input)
+            if not decision.allowed:
+                _audit_decision(
+                    settings,
+                    context,
+                    "entity",
+                    entity_input.normalized_label,
+                    decision,
+                )
+                _raise_access_denied(decision)
+            entity = service.create_entity(entity_input)
+            _audit_decision(
+                settings,
+                context,
+                "entity_mutation",
+                entity.id,
+                mutation_decision,
+            )
+            _audit_decision(settings, context, "entity", entity.id, decision)
+            if not decision.allowed:
+                _raise_access_denied(decision)
+            return _serialize_entity(
+                entity,
+                redacted=decision.redacted,
+                expose_restricted_fields=_can_read_restricted_fields(context),
+            )
         entity = service.create_entity(entity_input)
         return _serialize_entity(entity)
 
@@ -404,6 +445,7 @@ def _parse_create_entity_input(body: Any) -> CreateEntityInput:
     location = _parse_location_profile(data.get("location"), entity_type)
     store = _parse_store_profile(data.get("store"), entity_type)
     item = _parse_item_profile(data.get("item"), entity_type)
+    animal = _parse_animal_profile(data.get("animal"), entity_type)
     return CreateEntityInput(
         type=entity_type,
         label=label,
@@ -417,6 +459,7 @@ def _parse_create_entity_input(body: Any) -> CreateEntityInput:
         location=location,
         store=store,
         item=item,
+        animal=animal,
     )
 
 
@@ -465,6 +508,7 @@ def _parse_entity_type_for_registry(value: Any) -> EntityType:
         EntityType.LOCATION,
         EntityType.STORE,
         EntityType.ITEM,
+        EntityType.ANIMAL,
     }
     try:
         entity_type = EntityType(str(value))
@@ -472,13 +516,13 @@ def _parse_entity_type_for_registry(value: Any) -> EntityType:
         raise InvalidEntityRequestError(
             error="invalid_entity_request",
             field="type",
-            message="type must be one of: person, location, store, item.",
+            message="type must be one of: person, location, store, item, animal.",
         ) from exc
     if entity_type not in supported:
         raise InvalidEntityRequestError(
             error="invalid_entity_request",
             field="type",
-            message="type must be one of: person, location, store, item.",
+            message="type must be one of: person, location, store, item, animal.",
         )
     return entity_type
 
@@ -701,6 +745,49 @@ def _parse_item_profile(value: Any, entity_type: EntityType) -> ItemProfileInput
         ),
         identifiers=_parse_string_list(
             value.get("identifiers", ()), "item.identifiers"
+        ),
+    )
+
+
+def _parse_animal_profile(
+    value: Any,
+    entity_type: EntityType,
+) -> AnimalProfileInput | None:
+    if value is None:
+        if entity_type == EntityType.ANIMAL:
+            return AnimalProfileInput()
+        return None
+    if entity_type != EntityType.ANIMAL:
+        raise InvalidEntityRequestError(
+            error="invalid_entity_request",
+            field="animal",
+            message="animal profile is only valid for animal entities.",
+        )
+    if not isinstance(value, dict):
+        raise InvalidEntityRequestError(
+            error="invalid_entity_request",
+            field="animal",
+            message="animal must be an object.",
+        )
+    return AnimalProfileInput(
+        animal_kind=_optional_entity_string(
+            value.get("animal_kind"), "animal.animal_kind"
+        ),
+        species=_optional_entity_string(value.get("species"), "animal.species"),
+        breed=_optional_entity_string(value.get("breed"), "animal.breed"),
+        sex=_optional_entity_string(value.get("sex"), "animal.sex"),
+        color=_optional_entity_string(value.get("color"), "animal.color"),
+        date_of_birth=_optional_entity_string(
+            value.get("date_of_birth"), "animal.date_of_birth"
+        ),
+        microchip_id=_optional_entity_string(
+            value.get("microchip_id"), "animal.microchip_id"
+        ),
+        identifiers=_parse_string_list(
+            value.get("identifiers", ()), "animal.identifiers"
+        ),
+        reference_notes=_optional_entity_string(
+            value.get("reference_notes"), "animal.reference_notes"
         ),
     )
 
@@ -1130,8 +1217,13 @@ def _serialize_authorized_observation(
     observation: Observation,
     decision: PolicyDecision,
 ) -> dict[str, Any]:
-    del settings
-    return ProjectionService().project_observation(context, observation, decision)
+    if (
+        settings.safe_projections_enabled
+        or decision.redacted
+        or context.requested_projection != ProjectionName.RAW_OBSERVATION
+    ):
+        return ProjectionService().project_observation(context, observation, decision)
+    return _serialize_observation(observation, include_classification=True)
 
 
 def _entity_response(request: Request, entity: EntityRecord) -> dict[str, Any]:
@@ -1150,7 +1242,7 @@ def _entity_response(request: Request, entity: EntityRecord) -> dict[str, Any]:
     return _serialize_entity(
         entity,
         redacted=decision.redacted,
-        redact_sensitive_fields=_entity_field_redactions_enabled(context),
+        expose_restricted_fields=_can_read_restricted_fields(context),
     )
 
 
@@ -1175,7 +1267,7 @@ def _serialize_entity_list_response(
             _serialize_entity(
                 entity,
                 redacted=decision.redacted,
-                redact_sensitive_fields=_entity_field_redactions_enabled(context),
+                expose_restricted_fields=_can_read_restricted_fields(context),
             )
         )
     return items
@@ -1185,7 +1277,7 @@ def _serialize_entity(
     entity: EntityRecord,
     *,
     redacted: bool = False,
-    redact_sensitive_fields: bool = False,
+    expose_restricted_fields: bool = True,
 ) -> dict[str, Any]:
     return {
         "id": entity.id,
@@ -1201,15 +1293,16 @@ def _serialize_entity(
         "person": _serialize_person_profile(
             entity.person,
             redacted=redacted,
-            redact_sensitive_fields=redact_sensitive_fields,
+            expose_restricted_fields=expose_restricted_fields,
         ),
         "location": _serialize_location_profile(entity.location, redacted=redacted),
         "store": _serialize_store_profile(entity.store, redacted=redacted),
         "item": _serialize_item_profile(entity.item, redacted=redacted),
+        "animal": _serialize_animal_profile(entity.animal, redacted=redacted),
         "redactions": _entity_redactions(
             entity,
             redacted=redacted,
-            redact_sensitive_fields=redact_sensitive_fields,
+            expose_restricted_fields=expose_restricted_fields,
         ),
     }
 
@@ -1218,7 +1311,7 @@ def _serialize_person_profile(
     profile: PersonProfile | None,
     *,
     redacted: bool,
-    redact_sensitive_fields: bool,
+    expose_restricted_fields: bool,
 ) -> dict[str, Any] | None:
     if profile is None:
         return None
@@ -1230,7 +1323,7 @@ def _serialize_person_profile(
             _serialize_contact_method(
                 method,
                 redacted=redacted,
-                redact_sensitive_fields=redact_sensitive_fields,
+                expose_restricted_fields=expose_restricted_fields,
             )
             for method in profile.contact_methods
         ],
@@ -1241,16 +1334,16 @@ def _serialize_contact_method(
     method: ContactMethod,
     *,
     redacted: bool,
-    redact_sensitive_fields: bool,
+    expose_restricted_fields: bool,
 ) -> dict[str, Any]:
-    method_redacted = redacted or (
-        redact_sensitive_fields
+    redact_value = redacted or (
+        not expose_restricted_fields
         and method.sensitivity in {Sensitivity.RESTRICTED, Sensitivity.SECRET}
     )
     return {
         "kind": method.kind.value,
         "label": method.label,
-        "value": None if method_redacted else method.value,
+        "value": None if redact_value else method.value,
         "sensitivity": method.sensitivity.value,
     }
 
@@ -1313,22 +1406,42 @@ def _serialize_item_profile(
     }
 
 
+def _serialize_animal_profile(
+    profile: AnimalProfile | None,
+    *,
+    redacted: bool,
+) -> dict[str, Any] | None:
+    if profile is None:
+        return None
+    return {
+        "animal_kind": profile.animal_kind,
+        "species": profile.species,
+        "breed": profile.breed,
+        "sex": profile.sex,
+        "color": profile.color,
+        "date_of_birth": profile.date_of_birth,
+        "microchip_id": None if redacted else profile.microchip_id,
+        "identifiers": [] if redacted else list(profile.identifiers),
+        "reference_notes": None if redacted else profile.reference_notes,
+    }
+
+
 def _entity_redactions(
     entity: EntityRecord,
     *,
     redacted: bool,
-    redact_sensitive_fields: bool,
+    expose_restricted_fields: bool,
 ) -> list[str]:
     redactions: list[str] = []
-    has_sensitive_contact = (
-        entity.person is not None
-        and any(
-            method.sensitivity in {Sensitivity.RESTRICTED, Sensitivity.SECRET}
-            for method in entity.person.contact_methods
+    if entity.person is not None and (
+        redacted
+        or (
+            not expose_restricted_fields
+            and any(
+                method.sensitivity in {Sensitivity.RESTRICTED, Sensitivity.SECRET}
+                for method in entity.person.contact_methods
+            )
         )
-    )
-    if entity.person is not None and entity.person.contact_methods and (
-        redacted or (redact_sensitive_fields and has_sensitive_contact)
     ):
         redactions.append("contact_methods.value")
     if not redacted:
@@ -1348,6 +1461,13 @@ def _entity_redactions(
             redactions.append("item.serial_number")
         if entity.item.identifiers:
             redactions.append("item.identifiers")
+    if entity.animal is not None:
+        if entity.animal.microchip_id:
+            redactions.append("animal.microchip_id")
+        if entity.animal.identifiers:
+            redactions.append("animal.identifiers")
+        if entity.animal.reference_notes:
+            redactions.append("animal.reference_notes")
     return redactions
 
 
@@ -1372,15 +1492,22 @@ def _serialize_search_response(
         _audit_decision(settings, context, "observation", observation.id, decision)
         if not decision.allowed:
             continue
-        items.append(
-            ProjectionService().project_observation(context, observation, decision)
-        )
+        if (
+            settings.safe_projections_enabled
+            or decision.redacted
+            or context.requested_projection != ProjectionName.RAW_OBSERVATION
+        ):
+            items.append(
+                ProjectionService().project_observation(context, observation, decision)
+            )
+        else:
+            items.append(_serialize_search_result(result))
     return items
 
 
 def _use_access_pipeline(settings: MnemosyneSettings, request: Request) -> bool:
     del request
-    if not settings.access_policy_enabled:
+    if not (settings.domain_policy_enabled or settings.safe_projections_enabled):
         return False
     if not settings.access_context_headers_enabled:
         return False
@@ -1389,11 +1516,7 @@ def _use_access_pipeline(settings: MnemosyneSettings, request: Request) -> bool:
 
 def _metadata_response_enabled(request: Request) -> bool:
     settings = get_settings()
-    return settings.access_policy_enabled and _use_access_pipeline(settings, request)
-
-
-def _entity_field_redactions_enabled(context: AccessContext) -> bool:
-    return "mnemosyne.raw" not in context.scopes and "admin" not in context.roles
+    return settings.domain_policy_enabled and _use_access_pipeline(settings, request)
 
 
 def _access_context_from_request(
@@ -1428,6 +1551,10 @@ def _access_context_from_request(
             field="x-mnemosyne-projection",
         ),
     )
+
+
+def _can_read_restricted_fields(context: AccessContext) -> bool:
+    return "mnemosyne.raw" in context.scopes or "admin" in context.roles
 
 
 def _optional_header(request: Request, name: str) -> str | None:

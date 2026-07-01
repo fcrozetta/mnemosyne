@@ -48,6 +48,14 @@ def test_compose_base_starts_arcadedb_and_api() -> None:
     assert "db-bootstrap:" in compose
     assert "./db:/app/db:ro" in compose
     assert "MNEMOSYNE_STORAGE_BACKEND: arcade" in compose
+    assert (
+        "MNEMOSYNE_DOMAIN_POLICY_ENABLED: "
+        "${MNEMOSYNE_DOMAIN_POLICY_ENABLED:-${MNEMOSYNE_ACCESS_POLICY_ENABLED:-false}}"
+    ) in compose
+    assert (
+        "MNEMOSYNE_ACCESS_POLICY_ENABLED: "
+        "${MNEMOSYNE_ACCESS_POLICY_ENABLED:-${MNEMOSYNE_DOMAIN_POLICY_ENABLED:-false}}"
+    ) in compose
     assert "ARCADE_URL: http://arcadedb:2480" in compose
     assert "ARCADE_PASSWORD: ${ARCADE_PASSWORD:-mnemosyne-root}" in compose
     assert "surrealdb:" not in compose

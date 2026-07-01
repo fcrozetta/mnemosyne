@@ -12,12 +12,14 @@ from app.main import create_app
 def _client(monkeypatch, *, flags: bool) -> TestClient:
     monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
     if flags:
-        monkeypatch.setenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", "true")
+        monkeypatch.setenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", "true")
+        monkeypatch.setenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", "true")
         monkeypatch.setenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", "true")
     else:
-        monkeypatch.delenv("MNEMOSYNE_ACCESS_POLICY_ENABLED", raising=False)
+        monkeypatch.delenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", raising=False)
+        monkeypatch.delenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", raising=False)
         monkeypatch.delenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", raising=False)
     reset_observations_repository_cache()
     reset_settings_cache()
@@ -32,7 +34,7 @@ def _finance_headers(
 ) -> dict[str, str]:
     scopes = " ".join(("mnemosyne.query", "finance.read", *extra_scopes))
     return {
-        "X-Mnemosyne-Actor-User": "Sample User",
+        "X-Mnemosyne-Actor-User": "Fernando",
         "X-Mnemosyne-Client-App": "finance",
         "X-Mnemosyne-Service-Identity": "finance-api",
         "X-Mnemosyne-Purpose": "accounting",
@@ -56,7 +58,7 @@ def _create_health_observation(
             "content": content,
             "domain": "health",
             "sensitivity": sensitivity,
-            "subject": "Sample User",
+            "subject": "Fernando",
             "allowed_purposes": allowed_purposes
             if allowed_purposes is not None
             else ["accounting", "medication_management"],
@@ -110,6 +112,35 @@ def test_finance_accounting_projection_hides_raw_health_content(monkeypatch) -> 
     assert body["item_type"] == "Medication"
     assert "content" not in body
     assert "clinical_health_details" in body["redactions"]
+    assert "raw_health_content" in body["redactions"]
+
+
+def test_projected_policy_does_not_fall_back_to_raw_when_safe_flag_off(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("MNEMOSYNE_STORAGE_BACKEND", "in-memory")
+    monkeypatch.setenv("MNEMOSYNE_DOMAIN_POLICY_ENABLED", "true")
+    monkeypatch.setenv("MNEMOSYNE_ACCESS_CONTEXT_HEADERS_ENABLED", "true")
+    monkeypatch.delenv("MNEMOSYNE_SAFE_PROJECTIONS_ENABLED", raising=False)
+    monkeypatch.delenv("MNEMOSYNE_ACCESS_AUDIT_ENABLED", raising=False)
+    reset_observations_repository_cache()
+    reset_settings_cache()
+    reset_access_audit_service_cache()
+    client = TestClient(create_app())
+    created = _create_health_observation(
+        client,
+        "Bought Losartan medication at Pharmacy X. Dosage is one tablet daily.",
+    )
+
+    response = client.get(
+        f"/observations/{created['id']}",
+        headers=_finance_headers(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["view"] == "accounting_view"
+    assert "content" not in body
     assert "raw_health_content" in body["redactions"]
 
 

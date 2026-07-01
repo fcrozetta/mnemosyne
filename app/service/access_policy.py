@@ -71,17 +71,41 @@ class AccessPolicy:
         context: AccessContext,
         entity: EntityRecord,
     ) -> PolicyDecision:
+        return self._can_disclose_entity_metadata(
+            context,
+            allowed_purposes=entity.allowed_purposes,
+            sensitivity=entity.sensitivity,
+        )
+
+    def can_disclose_new_entity(
+        self,
+        context: AccessContext,
+        entity: CreateEntityInput,
+    ) -> PolicyDecision:
+        return self._can_disclose_entity_metadata(
+            context,
+            allowed_purposes=entity.allowed_purposes,
+            sensitivity=entity.sensitivity,
+        )
+
+    def _can_disclose_entity_metadata(
+        self,
+        context: AccessContext,
+        *,
+        allowed_purposes: tuple[Purpose, ...],
+        sensitivity: Sensitivity,
+    ) -> PolicyDecision:
         if (
             "admin" not in context.roles
-            and entity.allowed_purposes
-            and context.purpose not in entity.allowed_purposes
+            and allowed_purposes
+            and context.purpose not in allowed_purposes
         ):
             return PolicyDecision(False, "purpose_not_allowed")
-        if entity.sensitivity in {Sensitivity.SECRET, Sensitivity.RESTRICTED}:
+        if sensitivity in {Sensitivity.SECRET, Sensitivity.RESTRICTED}:
             if "admin" in context.roles:
                 return PolicyDecision(True, "admin_sensitive_allowed")
             return PolicyDecision(False, "sensitivity_denied")
-        if entity.sensitivity == Sensitivity.CONFIDENTIAL and (
+        if sensitivity == Sensitivity.CONFIDENTIAL and (
             "mnemosyne.raw" not in context.scopes and "admin" not in context.roles
         ):
             return PolicyDecision(

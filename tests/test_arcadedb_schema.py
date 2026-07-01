@@ -29,6 +29,7 @@ def test_arcadedb_schema_defines_observation_truth_graph() -> None:
     assert "CREATE VERTEX TYPE Person IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Location IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Item IF NOT EXISTS EXTENDS Entity;" in schema
+    assert "CREATE VERTEX TYPE Animal IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Topic IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE Store IF NOT EXISTS EXTENDS Entity;" in schema
     assert "CREATE VERTEX TYPE PaymentMethod IF NOT EXISTS EXTENDS Entity;" in schema
@@ -99,6 +100,7 @@ def test_arcadedb_schema_drops_legacy_identity_indexes() -> None:
     assert "DROP INDEX `Location[normalized_label,scope]` IF EXISTS;" in schema
     assert "DROP INDEX `Store[normalized_label,scope]` IF EXISTS;" in schema
     assert "DROP INDEX `Item[normalized_label,scope]` IF EXISTS;" in schema
+    assert "DROP INDEX `Animal[normalized_label,scope]` IF EXISTS;" in schema
     assert "DROP INDEX `Claim[claim_id]` IF EXISTS;" in schema
     assert "DROP INDEX `Source[source_id]` IF EXISTS;" in schema
 

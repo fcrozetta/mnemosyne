@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.entities import (
+    AnimalProfile,
     ContactMethod,
     ContactMethodKind,
     CreateEntityInput,
@@ -165,6 +166,19 @@ class ArcadeObservationsRepository(ObservationsRepository):
             "identifiers": _string_tuple_value(entity.item.identifiers)
             if entity.item
             else None,
+            "animal_kind": entity.animal.animal_kind if entity.animal else None,
+            "species": entity.animal.species if entity.animal else None,
+            "breed": entity.animal.breed if entity.animal else None,
+            "sex": entity.animal.sex if entity.animal else None,
+            "animal_color": entity.animal.color if entity.animal else None,
+            "date_of_birth": entity.animal.date_of_birth if entity.animal else None,
+            "microchip_id": entity.animal.microchip_id if entity.animal else None,
+            "animal_identifiers": _string_tuple_value(entity.animal.identifiers)
+            if entity.animal
+            else None,
+            "animal_reference_notes": entity.animal.reference_notes
+            if entity.animal
+            else None,
         }
         self.runtime.command(
             (
@@ -187,7 +201,12 @@ class ArcadeObservationsRepository(ObservationsRepository):
                 "item_kind = :item_kind, category = :category, "
                 "subcategory = :subcategory, brand = :brand, model = :model, "
                 "variant = :variant, color = :color, size = :size, "
-                "serial_number = :serial_number, identifiers = :identifiers "
+                "serial_number = :serial_number, identifiers = :identifiers, "
+                "animal_kind = :animal_kind, species = :species, breed = :breed, "
+                "sex = :sex, animal_color = :animal_color, "
+                "date_of_birth = :date_of_birth, microchip_id = :microchip_id, "
+                "animal_identifiers = :animal_identifiers, "
+                "animal_reference_notes = :animal_reference_notes "
                 "UPSERT WHERE entity_type = :entity_type "
                 "AND normalized_label = :normalized_label AND scope = :scope"
             ),
@@ -747,10 +766,9 @@ class ArcadeObservationsRepository(ObservationsRepository):
             (
                 f"UPDATE {_entity_type(mention.type)} SET "
                 f"id = ifnull(id, :entity_id_{index}), "
-                f"entity_type = ifnull(entity_type, :entity_type_{index}), "
-                f"label = ifnull(label, :entity_label_{index}), "
-                "normalized_label = "
-                f"ifnull(normalized_label, :normalized_label_{index}), "
+                f"entity_type = :entity_type_{index}, "
+                f"label = :entity_label_{index}, "
+                f"normalized_label = :normalized_label_{index}, "
                 "resolution_status = ifnull(resolution_status, 'unresolved'), "
                 "scope = ifnull(scope, 'general'), "
                 "sensitivity = ifnull(sensitivity, 'personal'), "
@@ -801,10 +819,9 @@ class ArcadeObservationsRepository(ObservationsRepository):
             (
                 f"UPDATE {_entity_type(mention.type)} SET "
                 f"id = ifnull(id, :entity_id_{index}), "
-                f"entity_type = ifnull(entity_type, :entity_type_{index}), "
-                f"label = ifnull(label, :entity_label_{index}), "
-                "normalized_label = "
-                f"ifnull(normalized_label, :normalized_label_{index}), "
+                f"entity_type = :entity_type_{index}, "
+                f"label = :entity_label_{index}, "
+                f"normalized_label = :normalized_label_{index}, "
                 "resolution_status = "
                 f"ifnull(resolution_status, :resolution_status_{index}), "
                 "scope = ifnull(scope, 'general'), "
@@ -880,6 +897,7 @@ def _entity_type(entity_type: EntityType) -> str:
         EntityType.LOCATION: "Location",
         EntityType.STORE: "Store",
         EntityType.ITEM: "Item",
+        EntityType.ANIMAL: "Animal",
         EntityType.TOPIC: "Topic",
         EntityType.OTHER: "UnknownEntity",
     }[entity_type]
@@ -910,6 +928,9 @@ def _entity_record_from_row(row: dict[str, Any]) -> EntityRecord:
         else None,
         store=_store_record_from_row(row) if entity_type == EntityType.STORE else None,
         item=_item_record_from_row(row) if entity_type == EntityType.ITEM else None,
+        animal=_animal_record_from_row(row)
+        if entity_type == EntityType.ANIMAL
+        else None,
     )
 
 
@@ -959,6 +980,20 @@ def _item_record_from_row(row: dict[str, Any]) -> ItemProfile:
         size=_optional_str(row.get("size")),
         serial_number=_optional_str(row.get("serial_number")),
         identifiers=_parse_string_tuple(row.get("identifiers")),
+    )
+
+
+def _animal_record_from_row(row: dict[str, Any]) -> AnimalProfile:
+    return AnimalProfile(
+        animal_kind=_optional_str(row.get("animal_kind")),
+        species=_optional_str(row.get("species")),
+        breed=_optional_str(row.get("breed")),
+        sex=_optional_str(row.get("sex")),
+        color=_optional_str(row.get("animal_color")),
+        date_of_birth=_optional_str(row.get("date_of_birth")),
+        microchip_id=_optional_str(row.get("microchip_id")),
+        identifiers=_parse_string_tuple(row.get("animal_identifiers")),
+        reference_notes=_optional_str(row.get("animal_reference_notes")),
     )
 
 

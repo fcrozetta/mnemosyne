@@ -24,6 +24,7 @@ class EntityType(StrEnum):
     LOCATION = "location"
     STORE = "store"
     ITEM = "item"
+    ANIMAL = "animal"
     TOPIC = "topic"
     OTHER = "other"
 
